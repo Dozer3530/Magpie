@@ -1,3 +1,5 @@
+<img src="assets/logo.png" align="left" width="110" alt="Magpie logo" />
+
 # Magpie
 
 Weekly crop-monitoring package builder. Funnels Survey123 field observations,
