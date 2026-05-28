@@ -14,6 +14,7 @@ or nutrient to a template is automatically picked up without code changes.
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -43,9 +44,36 @@ PRESENCE_CHOICES = ("", "yes")
 # one-off lab code (e.g. "M" for medium) still round-trips through the UI.
 RATING_CHOICES = ("", "D", "L", "S", "H", "VH")
 
+# Display units baked into the template headers (e.g. `N (%)`, `TDR_1_SOIL_EC
+# (dS/m)`). The unit is part of the header text the client sees, but internal
+# logic (classification, pairing, import matching) works on the unit-stripped
+# *key* (see `_strip_unit` / `Field.key`). This table documents the units we
+# stamp; the templates themselves remain the source of truth.
+#
+# NOTE: NO3N, Na, and Cl vary by lab (% vs ppm). These reflect the common
+# Canadian plant-tissue convention — verify against the client's PT2R report.
+UNIT_BY_KEY = {
+    "TDR_1_SOIL_TEMPERATURE": "°C", "TDR_2_SOIL_TEMPERATURE": "°C", "TDR_3_SOIL_TEMPERATURE": "°C",
+    "TDR_1_SOIL_EC": "dS/m", "TDR_2_SOIL_EC": "dS/m", "TDR_3_SOIL_EC": "dS/m",
+    "TDR_1_SOIL_MOISTURE": "%", "TDR_2_SOIL_MOISTURE": "%", "TDR_3_SOIL_MOISTURE": "%",
+    "N": "%", "P": "%", "K": "%", "Ca": "%", "Mg": "%", "S": "%", "Na": "%", "Cl": "%",
+    "NO3N": "ppm", "Zn": "ppm", "Mn": "ppm", "Fe": "ppm", "Cu": "ppm",
+    "B": "ppm", "Mo": "ppm", "Al": "ppm",
+}
 
-# Column-name patterns. Order matters: first match wins.
-# Disease severity must be checked before disease presence (suffix-specific).
+# Matches a trailing " (unit)" parenthetical so the rest of the codebase can
+# work on the canonical, unit-free column name.
+_UNIT_SUFFIX_RE = re.compile(r"\s*\([^)]*\)\s*$")
+
+
+def _strip_unit(name: str) -> str:
+    """Return the canonical column key: header text minus a trailing ` (unit)`."""
+    return _UNIT_SUFFIX_RE.sub("", str(name)).strip()
+
+
+# Column-name patterns. Order matters: first match wins. Operates on the
+# unit-stripped *key* (callers pass `_strip_unit(header)`).
+# Severity (any `*_Severity`) is checked before disease presence.
 def classify(header: str) -> FieldKind:
     h = header.strip()
     low = h.lower()
@@ -61,7 +89,8 @@ def classify(header: str) -> FieldKind:
     if h == "Images":
         return FieldKind.IMAGES
 
-    if low.startswith("disease_") and low.endswith("_severity"):
+    if low.endswith("_severity"):
+        # Disease_*_Severity and Insect_Damage_Severity → Low/Med/High picker.
         return FieldKind.SEVERITY
     if low.startswith("disease_") and h != "Disease_Report_Results":
         # Disease_Report_Results (corn template) is free text, not yes/blank.
@@ -106,6 +135,15 @@ class Field:
         return get_column_letter(self.excel_col)
 
     @property
+    def key(self) -> str:
+        """Canonical, unit-free column name (e.g. `N (%)` → `N`).
+
+        All internal matching/pairing uses the key so units in the header
+        don't break classification, nutrient/severity pairing, or imports.
+        """
+        return _strip_unit(self.name)
+
+    @property
     def sql_type(self) -> str:
         # We store everything as TEXT so values round-trip the templates
         # byte-equivalent (e.g. "yes" presence, "Low" severity, blank cells).
@@ -123,7 +161,7 @@ def read_template_fields(template_path: Path) -> list[Field]:
         name = ws.cell(row=1, column=col).value
         if not name:
             continue
-        kind = classify(str(name))
+        kind = classify(_strip_unit(str(name)))
         choices: tuple[str, ...] = ()
         if kind == FieldKind.SEVERITY:
             choices = SEVERITY_CHOICES
@@ -143,12 +181,12 @@ def pair_disease_fields(fields: list[Field]) -> list[tuple[Field, Field | None]]
 
     Returns rows for a (Disease | Presence | Severity) table.
     """
-    by_name = {f.name: f for f in fields}
+    by_key = {f.key: f for f in fields}
     pairs: list[tuple[Field, Field | None]] = []
     for f in fields:
         if f.kind != FieldKind.DISEASE_PRESENCE:
             continue
-        sev = by_name.get(f.name + "_Severity")
+        sev = by_key.get(f.key + "_Severity")
         pairs.append((f, sev))
     return pairs
 
@@ -158,22 +196,23 @@ def pair_nutrient_fields(fields: list[Field]) -> list[tuple[Field, Field | None]
 
     Returns rows for a (Nutrient | Value | Rate) table.
     """
-    by_name = {f.name: f for f in fields}
+    by_key = {f.key: f for f in fields}
     pairs: list[tuple[Field, Field | None]] = []
     for f in fields:
         if f.kind != FieldKind.NUMBER:
             continue
-        # Skip suffixed fields; we look for the bare nutrient name and
+        k = f.key
+        # Skip suffixed fields; we look for the bare nutrient key and
         # match it against its `_rate` sibling.
         if (
-            f.name.endswith("_rate")
-            or f.name.endswith("_Actual")
-            or f.name.endswith("_Expected")
-            or f.name.startswith("TDR_")
-            or f.name.startswith("Petal_Test_")
+            k.endswith("_rate")
+            or k.endswith("_Actual")
+            or k.endswith("_Expected")
+            or k.startswith("TDR_")
+            or k.startswith("Petal_Test_")
         ):
             continue
-        rate = by_name.get(f.name + "_rate")
+        rate = by_key.get(k + "_rate")
         if rate is not None:
             pairs.append((f, rate))
     return pairs
@@ -187,22 +226,22 @@ def pair_ratio_fields(
     Returns rows for a (Ratio | Actual | Expected) table.
     The first element is the bare ratio name (e.g. `N/S`).
     """
-    by_name = {f.name: f for f in fields}
+    by_key = {f.key: f for f in fields}
     rows: list[tuple[str, Field, Field | None]] = []
     for f in fields:
-        if not f.name.endswith("_Actual"):
+        if not f.key.endswith("_Actual"):
             continue
-        base = f.name[: -len("_Actual")]
-        rows.append((base, f, by_name.get(base + "_Expected")))
+        base = f.key[: -len("_Actual")]
+        rows.append((base, f, by_key.get(base + "_Expected")))
     return rows
 
 
 def tdr_fields(fields: list[Field]) -> list[Field]:
-    return [f for f in fields if f.name.startswith("TDR_")]
+    return [f for f in fields if f.key.startswith("TDR_")]
 
 
 def petal_test_fields(fields: list[Field]) -> list[Field]:
-    return [f for f in fields if f.name.startswith("Petal_Test_")]
+    return [f for f in fields if f.key.startswith("Petal_Test_")]
 
 
 def read_template_locations(template_path: Path) -> list[tuple[str, float, float]]:

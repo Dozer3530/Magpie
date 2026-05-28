@@ -96,6 +96,9 @@ def auto_map_columns(
     """
     target_by_exact = {f.name: f.name for f in template_fields}
     target_by_norm = {_normalize(f.name): f.name for f in template_fields}
+    # Match against the unit-free key too, so a lab column "N" maps to the
+    # template's unit-bearing header "N (%)".
+    target_by_key = {_normalize(f.key): f.name for f in template_fields}
 
     matches: dict[str, str] = {}
     unmatched_source: list[str] = []
@@ -105,7 +108,8 @@ def auto_map_columns(
         if col in target_by_exact:
             tgt = target_by_exact[col]
         else:
-            tgt = target_by_norm.get(_normalize(col))
+            norm = _normalize(col)
+            tgt = target_by_norm.get(norm) or target_by_key.get(norm)
         if tgt is None:
             unmatched_source.append(col)
         else:

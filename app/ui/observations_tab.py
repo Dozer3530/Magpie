@@ -286,6 +286,9 @@ class ObservationsTab(QWidget):
         crop = crop_by_code(crop_code)
         fields = read_template_fields(crop.template_path)
         by_name = {f.name: f for f in fields}
+        # Keyed by unit-free name so hardcoded lookups (TDR_1_SOIL_TEMPERATURE)
+        # still resolve when the header carries a unit (e.g. "... (°C)").
+        by_key = {f.key: f for f in fields}
 
         with connect() as conn:
             growth_stages = [
@@ -329,11 +332,12 @@ class ObservationsTab(QWidget):
             r = sensor_idx
             soil_grid.addWidget(QLabel(f"TDR {sensor_idx}", soil_box), r, 0)
             for c, suffix in enumerate(("TEMPERATURE", "EC", "MOISTURE"), start=1):
-                fname = f"TDR_{sensor_idx}_SOIL_{suffix}"
-                f = by_name.get(fname)
+                fkey = f"TDR_{sensor_idx}_SOIL_{suffix}"
+                f = by_key.get(fkey)
                 if f:
                     w = _make_widget(f, soil_box, growth_stages)
-                    self._bindings[fname] = FieldBinding(f, w)
+                    # Bindings are keyed by the DB column = full header (f.name).
+                    self._bindings[f.name] = FieldBinding(f, w)
                     soil_grid.addWidget(w, r, c)
         field_layout.addWidget(soil_box)
 
@@ -360,7 +364,7 @@ class ObservationsTab(QWidget):
         # --- Section: Insects ----------------------------------------------
         insect_box = QGroupBox("Insects", field_host)
         i_form = QFormLayout(insect_box)
-        for name in ("Insect_Damage", "Insect_Identification"):
+        for name in ("Insect_Damage", "Insect_Damage_Severity", "Insect_Identification"):
             f = by_name.get(name)
             if f:
                 w = _make_widget(f, insect_box, growth_stages)
