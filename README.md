@@ -103,10 +103,14 @@ This pathway is tested — see the wheat drop-in integration test in
 ## Data conventions
 
 - Disease presence columns hold `"yes"` or blank. Severity is `Low` / `Med` /
-  `High` or blank.
+  `High` or blank (bands: Low 1–10%, Med 10–30%, High >30% of the plant).
+  Insect damage uses the same severity scale (`Insect_Damage_Severity`).
 - Nutrient `_rate` columns are PT2R letter codes (`D` / `L` / `S` / `H` /
   `VH`) — editable combo boxes accept any one-off lab code without losing
   it.
+- Measurement units are baked into the template headers (e.g. `N (%)`,
+  `Zn (ppm)`, `TDR_1_SOIL_TEMPERATURE (°C)`). Internal logic matches on a
+  unit-stripped key, so the unit text never breaks classification or import.
 - Locations are fixed across weeks; their lat/long lives in the templates.
 - One client, one output set per week. No multi-tenant model.
 
