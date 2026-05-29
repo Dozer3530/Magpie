@@ -236,6 +236,51 @@ def pair_ratio_fields(
     return rows
 
 
+# ---- Field-page vs Lab-page split -------------------------------------------
+# Single source of truth for which template columns come from the field tablet
+# (Survey123) vs the lab report (PT2R). Used by the Observations form layout,
+# the per-week Field/Lab progress dashboard, and the fake-import generator.
+
+# Lab report free-text columns that aren't nutrient values/rates/ratios.
+_LAB_TEXT_NAMES = {"ReportNo", "Lab_No.", "Disease_Report_Results"}
+
+
+def page_of(f: Field) -> str:
+    """Return "lab" if this column comes from the PT2R lab report, else "field".
+
+    Lab = nutrient `_rate` codes, `*_Actual`/`*_Expected` ratios, bare-element
+    nutrient values, and the lab report identifiers. Everything else (Date_Time,
+    growth stage, TDR sensors, diseases, insects, petal test, images) is field.
+    """
+    if f.name in _LAB_TEXT_NAMES:
+        return "lab"
+    if f.kind == FieldKind.RATING:                       # nutrient `_rate` codes
+        return "lab"
+    k = f.key
+    if k.endswith("_Actual") or k.endswith("_Expected"):  # nutrient ratios
+        return "lab"
+    if f.kind == FieldKind.NUMBER and not (k.startswith("TDR_") or k.startswith("Petal_Test_")):
+        return "lab"                                      # bare nutrient values
+    return "field"
+
+
+def _page_names(fields: list[Field], page: str) -> set[str]:
+    return {
+        f.name for f in fields
+        if f.name not in ("ID", "Location", "Images") and page_of(f) == page
+    }
+
+
+def field_page_names(fields: list[Field]) -> set[str]:
+    """Names of the data columns fed by Survey123 (excl. ID/Location/Images)."""
+    return _page_names(fields, "field")
+
+
+def lab_page_names(fields: list[Field]) -> set[str]:
+    """Names of the data columns fed by the PT2R lab report."""
+    return _page_names(fields, "lab")
+
+
 def tdr_fields(fields: list[Field]) -> list[Field]:
     return [f for f in fields if f.key.startswith("TDR_")]
 

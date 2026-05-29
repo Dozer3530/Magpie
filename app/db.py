@@ -315,6 +315,50 @@ def delete_week(conn: sqlite3.Connection, iso_week: str) -> None:
     conn.execute("DELETE FROM weeks WHERE iso_week = ?", (iso_week,))
 
 
+def week_exists(conn: sqlite3.Connection, iso_week: str) -> bool:
+    return conn.execute(
+        "SELECT 1 FROM weeks WHERE iso_week = ?", (iso_week,)
+    ).fetchone() is not None
+
+
+def rename_week(conn: sqlite3.Connection, old: str, new: str) -> None:
+    """Change a week's primary key from `old` to `new`, carrying its obs rows.
+
+    The `iso_week` PK is referenced by every `obs_<crop>` table (FK is ON DELETE
+    CASCADE, not ON UPDATE), so we can't just UPDATE the PK in place. Instead we
+    order the operations so the FK is satisfied at every step:
+
+      1. copy the `weeks` row to the new PK (preserving label + created_at),
+      2. repoint every obs row from old → new (now valid: new PK exists),
+      3. delete the old `weeks` row (nothing references it anymore, so the
+         CASCADE deletes no obs rows).
+
+    All within the caller's single transaction. Raises ValueError if `new`
+    already exists or `old` does not.
+    """
+    if old == new:
+        return
+    if not week_exists(conn, old):
+        raise ValueError(f"Week {old!r} does not exist")
+    if week_exists(conn, new):
+        raise ValueError(f"Week {new!r} already exists")
+
+    conn.execute(
+        """
+        INSERT INTO weeks (iso_week, label, created_at)
+        SELECT ?, label, created_at FROM weeks WHERE iso_week = ?
+        """,
+        (new, old),
+    )
+    for crop in CROPS:
+        table = _quote_ident(crop.obs_table)
+        conn.execute(
+            f'UPDATE {table} SET "iso_week" = ? WHERE "iso_week" = ?',
+            (new, old),
+        )
+    conn.execute("DELETE FROM weeks WHERE iso_week = ?", (old,))
+
+
 def list_obs_for_week(
     conn: sqlite3.Connection,
     crop_code: str,

@@ -31,6 +31,30 @@ def location_dir(crop_code: str, iso_week: str, location_id: str) -> Path:
     return IMAGES_ROOT / crop_code / iso_week / location_id
 
 
+def rename_week_dirs(old: str, new: str) -> list[tuple[Path, Path]]:
+    """Move each crop's image folder from the `old` week to the `new` week.
+
+    Images live under IMAGES_ROOT/<crop>/<week>/... and the DB stores only
+    filenames, so when a week is renamed we move the on-disk folders to keep
+    paths resolvable. Tolerant: skips crops with no folder for `old`. Returns
+    the (src, dst) pairs actually moved. If a destination already exists it is
+    left untouched and that crop is skipped (the caller validates `new` is a
+    fresh week, so this only guards against partial prior runs).
+    """
+    moved: list[tuple[Path, Path]] = []
+    if old == new or not IMAGES_ROOT.is_dir():
+        return moved
+    for crop_dir in IMAGES_ROOT.iterdir():
+        if not crop_dir.is_dir():
+            continue
+        src = crop_dir / old
+        dst = crop_dir / new
+        if src.is_dir() and not dst.exists():
+            shutil.move(str(src), str(dst))
+            moved.append((src, dst))
+    return moved
+
+
 def parse_list(images_cell: str | None) -> list[str]:
     """Parse the DB `Images` value into clean filenames."""
     if not images_cell:

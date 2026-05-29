@@ -174,6 +174,29 @@
   .status.flag{background:var(--red)}
   .status.empty{background:#000}
 
+  /* ============ WEEKS DASHBOARD ============ */
+  .weeks-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+  .wkcard{cursor:default}
+  .wkcard.wk-active .wk-id{color:var(--lime)}
+  .wk-head{display:flex;align-items:flex-start;gap:12px;margin-bottom:6px}
+  .wk-id{font-family:"Archivo",sans-serif;font-weight:900;font-size:26px;letter-spacing:-.03em;
+    line-height:1;text-transform:uppercase;word-break:break-word}
+  .wk-meta{font-family:"Space Mono",monospace;font-size:10px;font-weight:700;color:var(--ink-faint);
+    text-transform:uppercase;margin-top:6px;letter-spacing:.04em}
+  .wk-actions{margin-left:auto;display:flex;gap:6px;flex-shrink:0;align-items:flex-start}
+  .mini{font-family:"Space Mono",monospace;font-size:10px;font-weight:700;text-transform:uppercase;
+    letter-spacing:.04em;padding:5px 9px;border:2px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer;transition:.12s}
+  .mini:hover{background:var(--lime);color:#000}
+  .mini.danger:hover{background:var(--red);color:var(--ink)}
+  .wk-actions .rn-in{font-family:"Space Mono",monospace;font-size:12px;font-weight:700;padding:4px 8px;
+    border:2px solid var(--line);background:var(--bg);color:var(--ink);width:130px}
+  .wk-crop{margin-top:14px;padding-top:14px;border-top:2px solid var(--line-2)}
+  .wk-crop-name{font-family:"Space Mono",monospace;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--ink-soft);margin-bottom:9px}
+  .wk-bars{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .wk-bar .lab-mt{display:flex;justify-content:space-between;font-family:"Space Mono",monospace;font-size:10px;
+    font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);margin-bottom:6px}
+  .wk-bar .lab-mt b{color:var(--ink)}
+
   /* ============ IMPORT VIEWS ============ */
   .dropzone{border:var(--bd) dashed var(--line);background:var(--panel);
     padding:46px 32px;text-align:center;transition:.12s;cursor:pointer;position:relative;overflow:hidden}
@@ -377,15 +400,16 @@
 ============================================================ */
 
 const NAV = [
-  {id:"overview", n:"01", l:"Week overview"},
-  {id:"survey",   n:"02", l:"Survey123 import"},
-  {id:"lab",      n:"03", l:"Lab import"},
-  {id:"obs",      n:"04", l:"Observations"},
-  {id:"export",   n:"05", l:"Export"},
+  {id:"weeks",    n:"01", l:"Weeks"},
+  {id:"overview", n:"02", l:"Week overview"},
+  {id:"survey",   n:"03", l:"Survey123 import"},
+  {id:"lab",      n:"04", l:"Lab import"},
+  {id:"obs",      n:"05", l:"Observations"},
+  {id:"export",   n:"06", l:"Export"},
 ];
 
 const STATE = {
-  crops:[], crop:null, weeks:[], week:null, view:"overview",
+  crops:[], crop:null, weeks:[], week:null, view:"weeks",
   schemaCache:{}, overview:null,
   activePt:null, obsTab:"field", obsValues:{}, obsImages:[],
   survey:null,   // {token, filename, preview}
@@ -458,7 +482,55 @@ function renderNav(){
 }
 
 // ============================================================
-//  VIEW 01 — WEEK OVERVIEW
+//  VIEW 01 — WEEKS DASHBOARD
+// ============================================================
+function progressBar(kind, label, locs, total, filled, expected){
+  const pct = total ? Math.round(locs/total*100) : 0;
+  const cellPct = expected ? Math.round(filled/expected*100) : 0;
+  return `<div class="wk-bar" title="${filled}/${expected} fields filled (${cellPct}%)">
+    <div class="lab-mt"><span>${label}</span><b>${locs}/${total}</b></div>
+    <div class="track"><i class="${kind}" style="--r:${100-pct}%"></i></div></div>`;
+}
+function weekCard(w){
+  const active = w.iso_week===STATE.week;
+  const crops = w.crops.map(c=>`
+    <div class="wk-crop">
+      <div class="wk-crop-name">${esc(c.display_name)}</div>
+      <div class="wk-bars">
+        ${progressBar("survey","Field", c.field_locations, c.total_locations, c.field_filled, c.field_expected)}
+        ${progressBar("lab","Lab", c.lab_locations, c.total_locations, c.lab_filled, c.lab_expected)}
+      </div>
+    </div>`).join("");
+  return `<article class="pt wkcard rise ${active?"wk-active":""}" data-week="${esc(w.iso_week)}">
+    <div class="wk-head">
+      <div><div class="wk-id">${esc(w.iso_week)}</div>
+        <div class="wk-meta">${active?"● active · ":""}created ${esc((w.created_at||"").slice(0,10))}</div></div>
+      <div class="wk-actions">
+        <button class="mini" data-act="open">Open</button>
+        <button class="mini" data-act="rename">Rename</button>
+        <button class="mini danger" data-act="del">Delete</button>
+      </div>
+    </div>
+    ${crops}
+  </article>`;
+}
+async function viewWeeks(){
+  const weeks = await API.get("/api/weeks/progress");
+  const cards = weeks.length
+    ? `<div class="weeks-grid">${weeks.map(weekCard).join("")}</div>`
+    : `<div class="loading">No weeks yet — create one to start.</div>`;
+  return `
+  <div class="vhead rise"><div class="step">Step 01 · Multi-week</div><h1>Weeks</h1>
+    <p>Every week with its <b>Field</b> (Survey123) and <b>Lab</b> (PT2R) completeness side by side — counted as monitoring points with data, ${STATE.crop?`for each crop`:""}. Field obs land first each week; the Lab bar fills in as results come back. Rename a week to whatever you call it (the code is also used in export filenames).</p></div>
+  <div class="actions rise" style="margin:0 0 8px">
+    <button class="btn" id="newWeekDash">+ New week</button>
+    <span class="note">creates the current ISO week${STATE.current?` · ${STATE.current}`:""}</span>
+  </div>
+  ${cards}`;
+}
+
+// ============================================================
+//  VIEW 02 — WEEK OVERVIEW
 // ============================================================
 async function viewOverview(){
   const ov = STATE.overview = await API.get(`/api/overview?crop=${STATE.crop}&week=${encodeURIComponent(STATE.week)}`);
@@ -482,7 +554,7 @@ async function viewOverview(){
 
   return `
   <div class="vhead rise">
-    <div class="step">Step 01 · Pipeline start</div>
+    <div class="step">Step 02 · Pipeline start</div>
     <h1>Week overview</h1>
     <p>The working set for <b>${cap(STATE.crop)} · ${STATE.week}</b>. Each fixed monitoring point shows how many template fields carry a value — the same coverage the desktop Week-overview tab computes, straight from <b>obs_${STATE.crop}</b>.</p>
   </div>
@@ -518,7 +590,7 @@ async function viewSurvey(){
   const s = STATE.survey;
   if(!s){
     return `
-    <div class="vhead rise"><div class="step">Step 02 · Field feed</div><h1>Survey123 import</h1>
+    <div class="vhead rise"><div class="step">Step 03 · Field feed</div><h1>Survey123 import</h1>
       <p>Upload the week's Survey123 export. Magpie matches its columns to the <b>${cap(STATE.crop)}</b> template by exact-then-normalized name and joins each row to a monitoring point by the ID column you pick.</p></div>
     <div class="dropzone rise" id="drop" style="animation-delay:.05s">
       <div class="icon">↧</div><h3>Drop Survey123 export · .xlsx / .csv</h3>
@@ -537,7 +609,7 @@ async function viewSurvey(){
   }).join("");
   const idOpts = p.source_cols.map(c=>`<option value="${esc(c)}" ${c===idCol?"selected":""}>${esc(c)}</option>`).join("");
   return `
-  <div class="vhead rise"><div class="step">Step 02 · Field feed</div><h1>Survey123 import</h1>
+  <div class="vhead rise"><div class="step">Step 03 · Field feed</div><h1>Survey123 import</h1>
     <p>Loaded <b>${esc(s.filename)}</b>. Confirm the join column, then commit into <b>obs_${STATE.crop} · ${STATE.week}</b>.</p></div>
   <div class="dropzone rise" id="drop"><div class="icon">▣</div>
     <h3>${esc(s.filename)}</h3><div class="hint">${p.row_count} rows · ${matched.length} columns mapped</div>
@@ -571,7 +643,7 @@ async function viewLab(){
   const s = STATE.lab;
   if(!s){
     return `
-    <div class="vhead rise"><div class="step">Step 03 · Lab feed</div><h1>Lab import</h1>
+    <div class="vhead rise"><div class="step">Step 04 · Lab feed</div><h1>Lab import</h1>
       <p>Upload the PT2R lab workbook (legacy <b>.xls</b> read via python-calamine). The lab's SampleID doesn't map to a monitoring point automatically — assign a <b>Target location</b> per row. Each location takes at most one row.</p></div>
     <div class="dropzone rise" id="drop" style="animation-delay:.05s">
       <div class="icon">↧</div><h3>Drop PT2R lab report · .xls / .csv</h3>
@@ -598,7 +670,7 @@ async function viewLab(){
   }).join("");
   const assigned = Object.values(s.targets).filter(Boolean).length;
   return `
-  <div class="vhead rise"><div class="step">Step 03 · Lab feed</div><h1>Lab import</h1>
+  <div class="vhead rise"><div class="step">Step 04 · Lab feed</div><h1>Lab import</h1>
     <p>Loaded <b>${esc(s.filename)}</b> · ${p.row_count} rows. Assign each row to a monitoring point, then commit into <b>obs_${STATE.crop} · ${STATE.week}</b>.</p></div>
   <div class="dropzone rise" id="drop"><div class="icon">▣</div>
     <h3>${esc(s.filename)}</h3><div class="hint">${p.row_count} rows · ${Object.keys(p.mapping.matches).length} columns mapped</div>
@@ -735,7 +807,7 @@ async function viewObs(){
   const page = STATE.obsTab;
   const secs = sch.sections.filter(s=>s.page===page).map(sectionHtml).join("");
   return `
-  <div class="vhead rise"><div class="step">Step 04 · Review &amp; edit</div><h1>Observations</h1>
+  <div class="vhead rise"><div class="step">Step 05 · Review &amp; edit</div><h1>Observations</h1>
     <p>Everything merged from both feeds for <b>${cap(STATE.crop)} · ${STATE.week}</b>, hand-editable before export. The form is built from the shared schema — the exact sections the desktop renders. Pick a point on the left.</p></div>
   <div class="obswrap rise" style="animation-delay:.05s">
     <div class="ptrail">${rail}</div>
@@ -777,7 +849,7 @@ function viewExport(){
     ["Bundle deliverable",`zip → EarthDaily_${STATE.week}.zip`],
   ];
   return `
-  <div class="vhead rise"><div class="step">Step 05 · Deliverable</div><h1>Export package</h1>
+  <div class="vhead rise"><div class="step">Step 06 · Deliverable</div><h1>Export package</h1>
     <p>Stamp the data into a copy of the template (styling preserved), write a matching GeoPackage, copy the photos, and zip the lot. The same service the desktop Export tab calls — identical output.</p></div>
   <div class="expgrid">
     <div class="runner rise" style="animation-delay:.05s">
@@ -836,7 +908,8 @@ async function render(){
   const v=$("#view"); v.innerHTML=`<div class="loading">Loading…</div>`;
   try{
     let html;
-    if(STATE.view==="overview") html=await viewOverview();
+    if(STATE.view==="weeks") html=await viewWeeks();
+    else if(STATE.view==="overview") html=await viewOverview();
     else if(STATE.view==="survey") html=await viewSurvey();
     else if(STATE.view==="lab") html=await viewLab();
     else if(STATE.view==="obs") html=await viewObs();
@@ -867,7 +940,49 @@ function wireUpload(commitHandler){
   }
 }
 
+function startRename(card, wk){
+  const head=card.querySelector(".wk-actions");
+  head.innerHTML=`<input class="rn-in" value="${esc(wk)}"><button class="mini" data-act="save">Save</button><button class="mini" data-act="cancel">Cancel</button>`;
+  const inp=head.querySelector(".rn-in"); inp.focus(); inp.select();
+  head.querySelector('[data-act="cancel"]').onclick=()=>render();
+  const doSave=async()=>{
+    const nv=inp.value.trim();
+    if(!nv||nv===wk){ render(); return; }
+    try{
+      const res=await API.post("/api/weeks/rename",{old:wk,new:nv});
+      if(STATE.week===wk) STATE.week=res.tag;
+      toast(`Renamed ${wk} → ${res.tag}`);
+      await boot.loadWeeks(); STATE.overview=null; render();
+    }catch(e){ toast("Rename failed: "+e.message,true); }
+  };
+  head.querySelector('[data-act="save"]').onclick=doSave;
+  inp.onkeydown=e=>{ if(e.key==="Enter") doSave(); else if(e.key==="Escape") render(); };
+}
+
 function wire(){
+  if(STATE.view==="weeks"){
+    const nw=$("#newWeekDash"); if(nw) nw.onclick=async()=>{
+      const {current}=await API.get("/api/weeks");
+      if(STATE.weeks.includes(current)){ STATE.week=current; toast(`Week ${current} already exists — selected it`); }
+      else { await API.post("/api/weeks",{tag:current}); toast(`Created week ${current}`); }
+      await boot.loadWeeks(); STATE.week=current; STATE.overview=null; render();
+    };
+    $("#view").querySelectorAll(".wkcard").forEach(card=>{
+      const wk=card.dataset.week;
+      card.querySelectorAll(".mini").forEach(b=>b.onclick=async e=>{
+        e.stopPropagation();
+        const act=b.dataset.act;
+        if(act==="open"){ STATE.week=wk; STATE.activePt=null; STATE.overview=null; STATE.view="overview"; render(); }
+        else if(act==="rename"){ startRename(card, wk); }
+        else if(act==="del"){
+          if(!confirm(`Delete week ${wk}? Observation rows for every crop in this week are removed.`)) return;
+          await API.del(`/api/weeks/${encodeURIComponent(wk)}`);
+          toast(`Deleted week ${wk}`);
+          await boot.loadWeeks(); if(STATE.week===wk) STATE.week=STATE.weeks[0]||null; STATE.overview=null; render();
+        }
+      });
+    });
+  }
   if(STATE.view==="overview"){
     $("#view").querySelectorAll(".pt").forEach(c=>c.onclick=()=>{STATE.activePt=c.dataset.pt;STATE.view="obs";render();});
   }

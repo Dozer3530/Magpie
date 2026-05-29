@@ -92,6 +92,47 @@ def test_week_crud_and_obs_roundtrip(client, canola):
     assert overview["locations_with_data"] == 1
 
 
+# ---- Weeks: progress dashboard + rename ------------------------------------
+
+def test_weeks_progress_two_tracks(client, canola):
+    week = "2026-W22"
+    client.post("/api/weeks", json={"tag": week})
+    n_name = _field_name(canola.template_path, "N")          # lab column
+    client.put("/api/obs", json={"crop": "canola", "week": week, "loc": "M1",
+                                 "values": {"Disease_Blackleg": "yes"}})   # field
+    client.put("/api/obs", json={"crop": "canola", "week": week, "loc": "M2",
+                                 "values": {n_name: "3.0"}})               # lab
+
+    prog = client.get("/api/weeks/progress").json()
+    wk = next(w for w in prog if w["iso_week"] == week)
+    canola_p = next(c for c in wk["crops"] if c["crop_code"] == "canola")
+    assert canola_p["field_locations"] == 1
+    assert canola_p["lab_locations"] == 1
+
+
+def test_week_rename_route(client, canola):
+    week = "2026-W22"
+    client.post("/api/weeks", json={"tag": week})
+    n_name = _field_name(canola.template_path, "N")
+    client.put("/api/obs", json={"crop": "canola", "week": week, "loc": "M1",
+                                 "values": {n_name: "3.2"}})
+
+    res = client.post("/api/weeks/rename", json={"old": week, "new": "Bloom-1"})
+    assert res.status_code == 200 and res.json()["tag"] == "Bloom-1"
+
+    tags = [w["iso_week"] for w in client.get("/api/weeks").json()["weeks"]]
+    assert "Bloom-1" in tags and week not in tags
+    got = client.get("/api/obs", params={"crop": "canola", "week": "Bloom-1", "loc": "M1"}).json()
+    assert got["values"][n_name] == "3.2"
+
+
+def test_week_rename_bad_name_400(client):
+    week = "2026-W22"
+    client.post("/api/weeks", json={"tag": week})
+    res = client.post("/api/weeks/rename", json={"old": week, "new": "bad/name"})
+    assert res.status_code == 400
+
+
 # ---- Import flow (upload -> commit) ----------------------------------------
 
 def test_survey_import_upload_then_commit(client, canola):

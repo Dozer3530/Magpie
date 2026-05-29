@@ -85,6 +85,26 @@ def delete_week(tag: str) -> dict:
     return {"ok": True}
 
 
+@app.get("/api/weeks/progress")
+def get_weeks_progress() -> list[dict]:
+    """Per-week, per-crop Field vs Lab completeness for the Weeks dashboard."""
+    return weeks_service.all_weeks_progress()
+
+
+class WeekRename(BaseModel):
+    old: str
+    new: str
+
+
+@app.post("/api/weeks/rename")
+def post_week_rename(body: WeekRename) -> dict:
+    try:
+        new_tag = weeks_service.rename_week(body.old, body.new)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"ok": True, "tag": new_tag}
+
+
 # ---- Overview --------------------------------------------------------------
 
 @app.get("/api/overview")
