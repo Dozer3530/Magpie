@@ -42,6 +42,12 @@ def connect() -> Iterator[sqlite3.Connection]:
     ensure_app_dirs()
     conn = sqlite3.connect(DB_PATH)
     conn.execute("PRAGMA foreign_keys = ON")
+    # WAL lets readers and a writer coexist without blocking — friendlier when
+    # the desktop app and the local web server both touch packages.sqlite. It
+    # is NOT a licence for two simultaneous editors (still run one frontend at
+    # a time); it just makes incidental concurrent reads painless. The mode is
+    # persisted on the DB file, so setting it per-connect is idempotent.
+    conn.execute("PRAGMA journal_mode = WAL")
     conn.row_factory = sqlite3.Row
     try:
         yield conn

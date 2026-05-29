@@ -36,22 +36,68 @@ single `.zip` you can email.
 ## Install
 
 ```
-pip install -r requirements.txt
+pip install -r requirements.txt          # desktop app
+pip install -r requirements-web.txt       # + the local web frontend
 ```
+
+`requirements-web.txt` pulls in everything in `requirements.txt` plus FastAPI,
+uvicorn, and python-multipart — install it only if you want the browser
+frontend. The desktop app runs without the web dependencies.
 
 Tested on Python 3.11+ on Windows. Uses PySide6, openpyxl, python-calamine
 (reads legacy `.xls`), pandas, geopandas / pyogrio / shapely.
 
 ## Run
 
-Double-click `run.bat`, or:
+Two frontends, **one shared core** — pick whichever you prefer; they produce
+byte-equivalent packages because both call the same `app/services/` layer.
+
+**Desktop (PySide6):** double-click `run.bat`, or:
 
 ```
 python -m app
 ```
 
-First launch auto-creates the current ISO week and seeds the database with
-the locations + growth stages defined in `app/crops.py`.
+**Local web app (browser → `127.0.0.1:8000`):** double-click `run-web.bat`, or:
+
+```
+python -m webapp
+```
+
+It opens your browser to a local FastAPI server bound to `127.0.0.1` only —
+single-user, no auth, never exposed to the network (the templates carry real
+client monitoring-point coordinates).
+
+> **Run one frontend at a time** against the same `packages.sqlite`. It's a
+> single-user tool, so this is fine — but two simultaneous editors of one row
+> is a logical conflict SQLite won't resolve. (The DB runs in WAL mode, which
+> makes incidental concurrent *reads* painless, but it is not multi-writer
+> safe by intent.)
+
+Either way, first launch auto-creates the current ISO week and seeds the
+database with the locations + growth stages defined in `app/crops.py`.
+
+## Two frontends, one core
+
+The whole point of the architecture is that a feature, bug fix, or template
+change takes effect in **both** frontends without editing two copies. All real
+logic — DB, schema, importers, exporters, merge policy, zip, photo handling,
+the observation form structure — lives in a UI-agnostic service layer
+(`app/services/`). The PySide6 desktop (`app/ui/`) and the FastAPI web server
+(`webapp/`) are both thin presentation shells that call the same service
+functions.
+
+```
+        app/services/   ← the brain (pure Python; no Qt, no HTTP)
+        weeks · observations(+form schema) · imports · exports · status
+              │                                   │
+        app/ui/  (PySide6 widgets)          webapp/  (FastAPI routes + static JS)
+```
+
+A `tests/test_parity.py` test seeds one set of observations, builds the week
+through the service layer *and* through the web `/api/export` route, and
+asserts the Excel + GeoPackage come out content-identical — the automated
+guarantee that the two frontends never drift.
 
 ## Weekly workflow
 
@@ -118,22 +164,36 @@ This pathway is tested — see the wheat drop-in integration test in
 
 ```
 app/
-├── __main__.py            entry point (python -m app)
+├── __main__.py            desktop entry point (python -m app)
 ├── config.py              paths
 ├── crops.py               crop registry (adding a 3rd crop = edit this)
 ├── schema.py              reads template headers → typed field metadata
 ├── db.py                  SQLite schema + helpers
-├── app_settings.py        last-used folder etc.
+├── app_settings.py        last-used folder etc. (desktop-only)
 ├── image_storage.py       photo storage layer
 ├── growth_stages/         per-crop BBCH lists
 ├── importers/             Survey123 + lab CSV/xls loaders
 ├── exporters/             xlsx + gpkg + photo-copy + zip
-└── ui/                    PySide6 tabs
+├── services/              UI-agnostic brain both frontends call
+│   ├── weeks.py             ISO-week calc + create/delete/list
+│   ├── observations.py      load/save + build_form_schema (shared form layout)
+│   ├── imports.py           commit_survey / commit_lab orchestration
+│   └── exports.py           build_week_package / build_all + week_status
+└── ui/                    PySide6 tabs (thin: widgets only)
+
+webapp/
+├── __main__.py            web entry point (python -m webapp → 127.0.0.1:8000)
+├── server.py              FastAPI routes — 1:1 thin shell over app/services
+├── serialize.py           the one place service dataclasses → JSON
+└── static/index.html      browser frontend (vanilla JS, no build step)
 
 Static Canola Template.xlsx   column-layout source of truth
 Static Corn Template.xlsx     "
+requirements.txt              desktop deps
+requirements-web.txt          + FastAPI / uvicorn / multipart
 data/                         generated DB + photos (gitignored)
 exports/                      generated weekly packages (gitignored)
+tests/                        pytest safety net (incl. desktop↔web parity)
 ```
 
 ## License
