@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Magpie · Brutalist Noir</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0B0B0B; --bg-2:#0F0F0F; --panel:#161616; --panel-2:#1E1E1E;
+    --ink:#F4F1E8; --ink-soft:#B4B0A4; --ink-faint:#76736A;
+    --lime:#C6F000; --red:#FF3B22; --blue:#3D6BFF; --line:#F4F1E8;
+    --rail:280px; --bd:3px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font-family:"Archivo",system-ui,sans-serif;line-height:1.45;-webkit-font-smoothing:antialiased;overflow-x:hidden;
+    background-image:linear-gradient(rgba(244,241,232,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(244,241,232,.025) 1px,transparent 1px);background-size:40px 40px}
+  ::selection{background:var(--lime);color:#0B0B0B}
+  .app{display:grid;grid-template-columns:var(--rail) 1fr;min-height:100vh}
+  .rail{position:sticky;top:0;height:100vh;border-right:var(--bd) solid var(--line);background:#000;color:var(--ink);display:flex;flex-direction:column;padding:0;overflow-y:auto}
+  .brand{padding:26px 24px;border-bottom:var(--bd) solid var(--lime);background:#000}
+  .wordmark{font-family:"Archivo",sans-serif;font-weight:900;font-size:46px;line-height:.82;letter-spacing:-.05em;text-transform:uppercase}
+  .wordmark .bird{color:var(--lime)}
+  .tag{font-family:"Space Mono",monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--lime);margin-top:12px}
+  nav{padding:0;flex:1}
+  .nav-item{display:flex;align-items:center;gap:12px;padding:16px 22px;cursor:pointer;color:var(--ink);transition:.12s;border-bottom:1px solid rgba(244,241,232,.12);text-transform:uppercase}
+  .nav-item:hover{background:rgba(198,240,0,.1)}
+  .nav-item.active{background:var(--lime);color:#000}
+  .ni{font-family:"Space Mono",monospace;font-size:12px;font-weight:700;width:24px}
+  .nav-item.active .ni{color:#000} .nav-item:not(.active) .ni{color:var(--lime)}
+  .nl{font-weight:800;font-size:14px;flex:1;letter-spacing:-.01em}
+  .foot{padding:18px 24px;border-top:var(--bd) solid var(--lime);font-family:"Space Mono",monospace;font-size:11px;color:var(--ink-soft);line-height:1.9}
+  .foot b{color:var(--lime)}
+  .main{display:flex;flex-direction:column;min-width:0}
+  .ctxbar{position:sticky;top:0;z-index:50;background:var(--bg);border-bottom:var(--bd) solid var(--line);padding:16px 36px;display:flex;align-items:center;gap:22px;flex-wrap:wrap}
+  .live{font-family:"Space Mono",monospace;font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--ink);display:flex;align-items:center;gap:9px}
+  .live .dot{width:10px;height:10px;background:var(--lime);border:2px solid var(--ink)}
+  .spacer{flex:1}
+  .seg{display:flex;border:var(--bd) solid var(--line)}
+  .seg button{font-family:"Space Mono",monospace;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:8px 18px;background:var(--bg);color:var(--ink);border:none;cursor:pointer;border-right:2px solid var(--line)}
+  .seg button:last-child{border-right:none}
+  .seg button.on{background:var(--lime);color:#000}
+  .ctxfield{font-family:"Space Mono",monospace;font-size:12px;font-weight:700;text-transform:uppercase;color:var(--ink)}
+  .ctxfield b{background:var(--lime);padding:2px 7px;border:2px solid var(--line);color:#000}
+  .view{padding:36px 36px 80px;max-width:1240px}
+  .vhead{margin-bottom:30px}
+  .step{display:inline-block;font-family:"Space Mono",monospace;font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ink);background:var(--red);padding:5px 11px;margin-bottom:16px;border:2px solid var(--line)}
+  .vhead h1{font-family:"Archivo",sans-serif;font-weight:900;font-size:clamp(40px,7vw,80px);line-height:.86;letter-spacing:-.045em;text-transform:uppercase}
+  .vhead p{margin-top:16px;max-width:60ch;color:var(--ink-soft);font-size:15px;font-weight:500}
+  .vhead b{background:var(--lime);color:#000;padding:1px 5px}
+  .section-title{display:flex;align-items:center;gap:14px;margin:42px 0 20px}
+  .section-title h2{font-family:"Archivo",sans-serif;font-weight:900;font-size:22px;text-transform:uppercase;letter-spacing:-.02em;background:var(--lime);color:#000;padding:6px 14px}
+  .section-title .idx{font-family:"Space Mono",monospace;font-size:12px;font-weight:700;color:var(--lime)}
+  .section-title .rule{flex:1;height:var(--bd);background:var(--line)}
+  .vitals{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border:var(--bd) solid var(--line)}
+  .vital{padding:22px;border-right:var(--bd) solid var(--line);background:var(--panel)}
+  .vital:last-child{border-right:none}
+  .vital.alert{background:var(--lime);color:#000}
+  .vital .label{font-family:"Space Mono",monospace;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft)}
+  .vital.alert .label{color:#000}
+  .vital .num{font-family:"Archivo",sans-serif;font-weight:900;font-size:clamp(34px,5vw,52px);line-height:.95;margin-top:12px;letter-spacing:-.03em;color:var(--lime)}
+  .vital.alert .num{color:#000}
+  .vital .num .u{font-size:.34em;font-family:"Space Mono",monospace;font-weight:700;margin-left:5px;color:var(--ink-faint)}
+  .vital.alert .num .u{color:#000}
+  .vital .sub{font-size:12px;font-weight:600;color:var(--ink-soft);margin-top:9px}
+  .vital.alert .sub{color:#000}
+  .cover{display:grid;grid-template-columns:1fr 1fr;gap:0;margin-top:22px;border:var(--bd) solid var(--line);border-top:none}
+  .meter{padding:18px 20px;border-right:var(--bd) solid var(--line);background:var(--panel)}
+  .meter:last-child{border-right:none}
+  .meter .mt{display:flex;justify-content:space-between;font-family:"Space Mono",monospace;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink);margin-bottom:9px}
+  .track{height:16px;border:2px solid var(--line);background:#000;overflow:hidden}
+  .track i{display:block;height:100%;background:var(--lime);width:var(--w);border-right:2px solid var(--line)}
+  .track i.lab{background:var(--blue)}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .pt{position:relative;border:var(--bd) solid var(--line);background:var(--panel);padding:18px;transition:.12s;cursor:pointer;box-shadow:6px 6px 0 var(--lime)}
+  .pt:hover{transform:translate(-2px,-2px);box-shadow:9px 9px 0 var(--lime)}
+  .pt.flagcard{box-shadow:6px 6px 0 var(--red)}
+  .pt.flagcard:hover{box-shadow:9px 9px 0 var(--red)}
+  .pt.watchcard{box-shadow:6px 6px 0 var(--blue)}
+  .pt.watchcard:hover{box-shadow:9px 9px 0 var(--blue)}
+  .status{position:absolute;top:16px;right:16px;width:16px;height:16px;background:var(--lime);border:2px solid var(--line)}
+  .status.flag{background:var(--red)} .status.watch{background:var(--blue)}
+  .pt .id{font-family:"Archivo",sans-serif;font-size:34px;font-weight:900;line-height:1;letter-spacing:-.03em}
+  .pt .stg{font-family:"Space Mono",monospace;font-size:12px;font-weight:700;color:var(--ink-soft);margin-top:5px;text-transform:uppercase}
+  .srcs{display:flex;gap:6px;margin:14px 0 12px;flex-wrap:wrap}
+  .src{font-family:"Space Mono",monospace;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border:2px solid var(--line);color:var(--ink-faint)}
+  .src.on{background:var(--lime);color:#000;border-color:var(--line)}
+  .src.lab.on{background:var(--blue);color:var(--ink);border-color:var(--line)}
+  .row{display:flex;justify-content:space-between;font-size:13.5px;font-weight:600;padding:6px 0;border-top:2px solid rgba(244,241,232,.18);color:var(--ink-soft)}
+  .row span:last-child{font-family:"Space Mono",monospace;font-weight:700;color:var(--ink)}
+  .flagtxt{display:inline-block;margin-top:11px;font-family:"Space Mono",monospace;font-size:11px;font-weight:700;text-transform:uppercase;padding:4px 9px;background:var(--red);color:var(--ink);border:2px solid var(--line)}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="rail">
+    <div class="brand"><div class="wordmark">Mag<span class="bird">pie</span></div><div class="tag">Weekly package builder</div></div>
+    <nav id="nav"></nav>
+    <div class="foot">crop <b>Canola</b><br>week <b>2026-W22</b><br>db <b>packages.sqlite</b></div>
+  </aside>
+  <main class="main">
+    <div class="ctxbar">
+      <div class="live"><span class="dot"></span>Local · 127.0.0.1</div>
+      <div class="spacer"></div>
+      <div class="seg"><button class="on">Canola</button><button>Corn</button></div>
+      <div class="ctxfield">week <b>2026-W22</b></div>
+    </div>
+    <div class="view" id="view"></div>
+  </main>
+</div>
+<script src="theme-data.js"></script>
+<script>
+  document.getElementById("nav").innerHTML = NAV.map((it,i)=>`<div class="nav-item ${i===0?'active':''}"><span class="ni">${it.n}</span><span class="nl">${it.l}</span></div>`).join("");
+  const cards = PTS.map(p=>`<article class="pt ${p.status==='flag'?'flagcard':p.status==='watch'?'watchcard':''}">
+    <span class="status ${p.status}"></span>
+    <div class="id">${p.id}</div><div class="stg">${p.stage}</div>
+    <div class="srcs"><span class="src on">Survey</span><span class="src lab ${p.lab?'on':''}">Lab</span>${p.img?`<span class="src">▣ ${p.img}</span>`:''}</div>
+    <div class="row"><span>Soil temp</span><span>${p.temp} °C</span></div>
+    <div class="row"><span>Moisture</span><span>${p.moist} %</span></div>
+    ${p.flag?`<span class="flagtxt">${p.flag}</span>`:''}
+  </article>`).join("");
+  document.getElementById("view").innerHTML = `
+    <div class="vhead"><div class="step">Step 01 · Pipeline start</div><h1>Week overview</h1>
+      <p>The working set for <b>Canola · 2026-W22</b>. Each of the nine fixed monitoring points shows which upstream feeds have landed and the headline field reading.</p></div>
+    <div class="vitals">
+      <div class="vital"><div class="label">Mean soil temp</div><div class="num">17.9<span class="u">°C</span></div><div class="sub">TDR avg across committed points</div></div>
+      <div class="vital"><div class="label">Mean soil EC</div><div class="num">0.40<span class="u">dS/m</span></div><div class="sub">Within expected band</div></div>
+      <div class="vital"><div class="label">Growth stage</div><div class="num" style="font-size:34px">BBCH 65</div><div class="sub">Modal · full flowering</div></div>
+      <div class="vital alert"><div class="label">Disease flags</div><div class="num">3<span class="u">/9</span></div><div class="sub">Blackleg · Sclerotinia · Aster</div></div>
+    </div>
+    <div class="cover">
+      <div class="meter"><div class="mt"><span>Field · Survey123</span><b>9/9</b></div><div class="track"><i style="--w:100%"></i></div></div>
+      <div class="meter"><div class="mt"><span>Lab · PT2R</span><b>7/9</b></div><div class="track"><i class="lab" style="--w:78%"></i></div></div>
+    </div>
+    <div class="section-title"><span class="idx">01·A</span><h2>Monitoring points</h2><span class="rule"></span></div>
+    <div class="grid3">${cards}</div>`;
+</script>
+</body>
+</html>

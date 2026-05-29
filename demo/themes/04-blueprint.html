@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Magpie · Blueprint</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Spline+Sans+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy:#0A2540; --navy-2:#0E2E4D; --panel:rgba(255,255,255,.04); --panel-2:rgba(255,255,255,.07);
+    --grid:rgba(120,190,255,.08);
+    --ink:#EAF3FB; --ink-soft:#9FBBD4; --ink-faint:#5E7E9C;
+    --line:rgba(120,190,255,.22); --line-2:rgba(120,190,255,.4);
+    --cyan:#34D1C4; --blue:#5BA8FF; --amber:#FFC65C; --red:#FF6B6B;
+    --rail:280px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--navy);color:var(--ink);font-family:"Archivo",system-ui,sans-serif;line-height:1.5;-webkit-font-smoothing:antialiased;overflow-x:hidden;
+    background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:26px 26px}
+  ::selection{background:var(--cyan);color:var(--navy)}
+  .app{display:grid;grid-template-columns:var(--rail) 1fr;min-height:100vh}
+  .rail{position:sticky;top:0;height:100vh;border-right:1px solid var(--line-2);background:rgba(7,26,46,.75);display:flex;flex-direction:column;padding:28px 0;overflow-y:auto}
+  .brand{padding:0 26px 24px;border-bottom:1px dashed var(--line)}
+  .wordmark{font-family:"Spline Sans Mono",monospace;font-weight:700;font-size:38px;line-height:.9;letter-spacing:-.04em}
+  .wordmark .bird{color:var(--cyan)}
+  .tag{font-family:"Spline Sans Mono",monospace;font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--ink-faint);margin-top:12px}
+  nav{padding:22px 16px;flex:1}
+  .nav-item{display:flex;align-items:center;gap:13px;padding:12px 14px;cursor:pointer;color:var(--ink-soft);transition:.2s;position:relative;margin-bottom:2px;border:1px dashed transparent}
+  .nav-item:hover{background:var(--panel);color:var(--ink)}
+  .nav-item.active{background:var(--panel-2);color:var(--ink);border-color:var(--line-2)}
+  .ni{font-family:"Spline Sans Mono",monospace;font-size:11px;color:var(--cyan);width:22px}
+  .nl{font-weight:500;font-size:14px;flex:1}
+  .foot{padding:18px 26px 4px;border-top:1px dashed var(--line);font-family:"Spline Sans Mono",monospace;font-size:11px;color:var(--ink-faint);line-height:1.95}
+  .foot b{color:var(--ink-soft)}
+  .main{display:flex;flex-direction:column;min-width:0}
+  .ctxbar{position:sticky;top:0;z-index:50;background:rgba(10,37,64,.85);backdrop-filter:blur(8px);border-bottom:1px solid var(--line-2);padding:16px 40px;display:flex;align-items:center;gap:26px;flex-wrap:wrap}
+  .live{font-family:"Spline Sans Mono",monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft);display:flex;align-items:center;gap:9px}
+  .live .dot{width:7px;height:7px;border-radius:50%;background:var(--cyan);box-shadow:0 0 8px var(--cyan);animation:pulse 2.2s infinite}
+  @keyframes pulse{50%{opacity:.35}}
+  .spacer{flex:1}
+  .seg{display:flex;border:1px solid var(--line-2);overflow:hidden}
+  .seg button{font-family:"Spline Sans Mono",monospace;font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;padding:8px 16px;background:transparent;color:var(--ink-soft);border:none;cursor:pointer;border-right:1px solid var(--line)}
+  .seg button:last-child{border-right:none}
+  .seg button.on{background:var(--cyan);color:var(--navy);font-weight:600}
+  .ctxfield{font-family:"Spline Sans Mono",monospace;font-size:12px;color:var(--ink-soft)}
+  .ctxfield b{color:var(--cyan)}
+  .view{padding:40px 40px 80px;max-width:1240px}
+  .vhead{margin-bottom:30px;position:relative;padding-left:22px}
+  .vhead::before{content:"";position:absolute;left:0;top:4px;bottom:4px;width:1px;background:var(--line-2)}
+  .vhead::after{content:"+";position:absolute;left:-5px;top:-4px;color:var(--cyan);font-family:"Spline Sans Mono",monospace}
+  .step{font-family:"Spline Sans Mono",monospace;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--cyan);margin-bottom:10px}
+  .vhead h1{font-family:"Archivo",sans-serif;font-weight:700;font-size:clamp(32px,5vw,50px);line-height:1;letter-spacing:-.025em}
+  .vhead p{margin-top:13px;max-width:62ch;color:var(--ink-soft);font-size:14.5px}
+  .vhead b{color:var(--ink)}
+  .section-title{display:flex;align-items:center;gap:14px;margin:42px 0 22px}
+  .section-title h2{font-family:"Spline Sans Mono",monospace;font-weight:600;font-size:15px;letter-spacing:.04em;text-transform:uppercase}
+  .section-title .idx{font-family:"Spline Sans Mono",monospace;font-size:11px;color:var(--cyan)}
+  .section-title .rule{flex:1;height:1px;background:var(--line);border-top:1px dashed var(--line-2)}
+  .vitals{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border:1px solid var(--line-2)}
+  .vital{padding:22px;border-right:1px dashed var(--line);position:relative}
+  .vital:last-child{border-right:none}
+  .vital .label{font-family:"Spline Sans Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-faint)}
+  .vital .num{font-family:"Spline Sans Mono",monospace;font-size:clamp(28px,4vw,42px);font-weight:600;line-height:1.05;margin-top:12px;color:var(--cyan)}
+  .vital.alert .num{color:var(--red)}
+  .vital .num .u{font-size:.4em;color:var(--ink-faint);margin-left:5px}
+  .vital .sub{font-size:12px;color:var(--ink-soft);margin-top:9px}
+  .cover{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:20px}
+  .meter .mt{display:flex;justify-content:space-between;font-family:"Spline Sans Mono",monospace;font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);margin-bottom:8px}
+  .meter .mt b{color:var(--ink)}
+  .track{height:10px;border:1px solid var(--line-2);background:rgba(0,0,0,.2);overflow:hidden;position:relative}
+  .track i{display:block;height:100%;background:repeating-linear-gradient(45deg,var(--cyan),var(--cyan) 6px,rgba(52,209,196,.6) 6px,rgba(52,209,196,.6) 12px);width:var(--w)}
+  .track i.lab{background:repeating-linear-gradient(45deg,var(--amber),var(--amber) 6px,rgba(255,198,92,.6) 6px,rgba(255,198,92,.6) 12px)}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .pt{position:relative;border:1px solid var(--line-2);background:var(--panel);padding:18px;transition:.2s;cursor:pointer}
+  .pt::before{content:"";position:absolute;top:6px;left:6px;width:6px;height:6px;border-top:1px solid var(--line-2);border-left:1px solid var(--line-2)}
+  .pt::after{content:"";position:absolute;bottom:6px;right:6px;width:6px;height:6px;border-bottom:1px solid var(--line-2);border-right:1px solid var(--line-2)}
+  .pt:hover{border-color:var(--cyan);background:var(--panel-2)}
+  .status{position:absolute;top:16px;right:16px;width:9px;height:9px;border:1px solid var(--cyan);background:var(--cyan)}
+  .status.flag{border-color:var(--red);background:var(--red)} .status.watch{border-color:var(--amber);background:var(--amber)}
+  .pt .id{font-family:"Spline Sans Mono",monospace;font-size:26px;font-weight:700;color:var(--ink)}
+  .pt .stg{font-size:12.5px;color:var(--ink-soft);margin-top:3px}
+  .srcs{display:flex;gap:6px;margin:13px 0 11px;flex-wrap:wrap}
+  .src{font-family:"Spline Sans Mono",monospace;font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;padding:3px 8px;border:1px solid var(--line);color:var(--ink-faint)}
+  .src.on{border-color:var(--cyan);color:var(--cyan)}
+  .src.lab.on{border-color:var(--amber);color:var(--amber)}
+  .row{display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-top:1px dashed var(--line);color:var(--ink-soft)}
+  .row span:last-child{font-family:"Spline Sans Mono",monospace;color:var(--ink)}
+  .flagtxt{display:inline-block;margin-top:10px;font-family:"Spline Sans Mono",monospace;font-size:10.5px;padding:4px 9px;border:1px solid var(--red);color:var(--red)}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="rail">
+    <div class="brand"><div class="wordmark">Mag<span class="bird">pie</span></div><div class="tag">Weekly package builder</div></div>
+    <nav id="nav"></nav>
+    <div class="foot">crop <b>Canola</b><br>week <b>2026-W22</b><br>db <b>packages.sqlite</b></div>
+  </aside>
+  <main class="main">
+    <div class="ctxbar">
+      <div class="live"><span class="dot"></span>Local · 127.0.0.1</div>
+      <div class="spacer"></div>
+      <div class="seg"><button class="on">Canola</button><button>Corn</button></div>
+      <div class="ctxfield">week <b>2026-W22</b></div>
+    </div>
+    <div class="view" id="view"></div>
+  </main>
+</div>
+<script src="theme-data.js"></script>
+<script>
+  document.getElementById("nav").innerHTML = NAV.map((it,i)=>`<div class="nav-item ${i===0?'active':''}"><span class="ni">${it.n}</span><span class="nl">${it.l}</span></div>`).join("");
+  const cards = PTS.map(p=>`<article class="pt">
+    <span class="status ${p.status}"></span>
+    <div class="id">${p.id}</div><div class="stg">${p.stage}</div>
+    <div class="srcs"><span class="src on">Survey</span><span class="src lab ${p.lab?'on':''}">Lab</span>${p.img?`<span class="src">▣ ${p.img}</span>`:''}</div>
+    <div class="row"><span>Soil temp</span><span>${p.temp} °C</span></div>
+    <div class="row"><span>Moisture</span><span>${p.moist} %</span></div>
+    ${p.flag?`<span class="flagtxt">${p.flag}</span>`:''}
+  </article>`).join("");
+  document.getElementById("view").innerHTML = `
+    <div class="vhead"><div class="step">Step 01 · Pipeline start</div><h1>Week overview</h1>
+      <p>The working set for <b>Canola · 2026-W22</b>. Each of the nine fixed monitoring points shows which upstream feeds have landed and the headline field reading.</p></div>
+    <div class="vitals">
+      <div class="vital"><div class="label">Mean soil temp</div><div class="num">17.9<span class="u">°C</span></div><div class="sub">TDR avg across committed points</div></div>
+      <div class="vital"><div class="label">Mean soil EC</div><div class="num">0.40<span class="u">dS/m</span></div><div class="sub">Within expected band</div></div>
+      <div class="vital"><div class="label">Growth stage</div><div class="num" style="font-size:28px">BBCH 65</div><div class="sub">Modal · full flowering</div></div>
+      <div class="vital alert"><div class="label">Disease flags</div><div class="num">3<span class="u">/9</span></div><div class="sub">Blackleg · Sclerotinia · Aster</div></div>
+    </div>
+    <div class="cover">
+      <div class="meter"><div class="mt"><span>Field coverage · Survey123</span><b>9/9</b></div><div class="track"><i style="--w:100%"></i></div></div>
+      <div class="meter"><div class="mt"><span>Lab coverage · PT2R</span><b>7/9</b></div><div class="track"><i class="lab" style="--w:78%"></i></div></div>
+    </div>
+    <div class="section-title"><span class="idx">01·A</span><h2>Monitoring points</h2><span class="rule"></span></div>
+    <div class="grid3">${cards}</div>`;
+</script>
+</body>
+</html>

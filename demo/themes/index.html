@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Magpie · Theme Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#15171A; --bg-2:#1C1F23; --chrome:#202429; --line:#2E333A;
+    --ink:#ECECEA; --ink-soft:#A7ADB4; --ink-faint:#6B727A; --accent:#B7E03B;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{background:var(--bg);color:var(--ink);font-family:"IBM Plex Mono",monospace;display:flex;flex-direction:column;overflow:hidden}
+  ::selection{background:var(--accent);color:#15171A}
+  header{padding:18px 28px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:24px;flex-shrink:0;background:var(--chrome)}
+  .logo{font-family:"Fraunces",serif;font-size:28px;font-weight:600;letter-spacing:-.02em;line-height:1}
+  .logo .bird{font-style:italic;font-weight:400;color:var(--accent)}
+  .sub{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-faint);border-left:1px solid var(--line);padding-left:24px}
+  .sub b{color:var(--ink-soft);font-weight:500}
+  .spacer{flex:1}
+  .hint{font-size:11px;color:var(--ink-faint);letter-spacing:.04em}
+  main{display:grid;grid-template-columns:340px 1fr;flex:1;min-height:0}
+  .picker{border-right:1px solid var(--line);overflow-y:auto;padding:18px;background:var(--bg-2)}
+  .picker h2{font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--ink-faint);margin:6px 4px 16px}
+  .card{border:1px solid var(--line);border-radius:8px;padding:16px;margin-bottom:12px;cursor:pointer;transition:.18s;background:var(--chrome);position:relative}
+  .card:hover{border-color:#404853;transform:translateX(2px)}
+  .card.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+  .card .no{position:absolute;top:14px;right:16px;font-size:11px;color:var(--ink-faint)}
+  .card .nm{font-family:"Fraunces",serif;font-size:21px;font-weight:500;letter-spacing:-.01em;line-height:1}
+  .card .ds{font-size:11.5px;color:var(--ink-soft);margin-top:9px;line-height:1.5;font-family:"IBM Plex Mono",monospace}
+  .swatches{display:flex;gap:5px;margin-top:13px}
+  .sw{width:22px;height:22px;border-radius:4px;border:1px solid rgba(255,255,255,.12)}
+  .meta{display:flex;gap:14px;margin-top:12px;font-size:10px;color:var(--ink-faint);letter-spacing:.02em}
+  .meta b{color:var(--ink-soft);font-weight:500}
+  .open{display:inline-flex;align-items:center;gap:6px;margin-top:13px;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);text-decoration:none}
+  .open:hover{text-decoration:underline}
+  .stage{position:relative;background:#0b0c0e;min-width:0;display:flex;flex-direction:column}
+  .bar{display:flex;align-items:center;gap:14px;padding:11px 20px;border-bottom:1px solid var(--line);background:var(--chrome);flex-shrink:0}
+  .dots{display:flex;gap:7px}.dots i{width:11px;height:11px;border-radius:50%;background:#3a4049}.dots i:nth-child(1){background:#ff5f56}.dots i:nth-child(2){background:#ffbd2e}.dots i:nth-child(3){background:#27c93f}
+  .url{flex:1;font-size:11.5px;color:var(--ink-soft);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:6px 12px}
+  .url b{color:var(--accent);font-weight:500}
+  .newtab{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);text-decoration:none;border:1px solid var(--line);padding:6px 12px;border-radius:6px}
+  .newtab:hover{border-color:var(--accent);color:var(--accent)}
+  .frame-wrap{flex:1;min-height:0;overflow:hidden}
+  iframe{width:100%;height:100%;border:none;background:#fff;display:block}
+  @media(max-width:880px){main{grid-template-columns:1fr}.picker{max-height:38vh}}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">Mag<span class="bird">pie</span></div>
+  <div class="sub">Theme Studio · <b>pick a look for the web frontend</b></div>
+  <div class="spacer"></div>
+  <div class="hint">same Canola · 2026-W22 data in every theme — only the styling changes</div>
+</header>
+<main>
+  <section class="picker">
+    <h2>Five directions</h2>
+    <div id="cards"></div>
+  </section>
+  <section class="stage">
+    <div class="bar">
+      <div class="dots"><i></i><i></i><i></i></div>
+      <div class="url">127.0.0.1:8000 / <b id="urlname">overview</b></div>
+      <a class="newtab" id="newtab" href="01-terra-almanac.html" target="_blank">Open ↗</a>
+    </div>
+    <div class="frame-wrap"><iframe id="frame" src="01-terra-almanac.html" title="theme preview"></iframe></div>
+  </section>
+</main>
+<script>
+const THEMES = [
+  {file:"01-terra-almanac.html", no:"01", nm:"Terra Almanac",
+   ds:"Warm bone paper, deep field-green ink, lime + clay accents. Organic, tactile, hard offset shadows. (The current build.)",
+   font:"Fraunces · Hanken · Plex Mono", mood:"Earthy / refined",
+   sw:["#F2EDE1","#1B2A21","#B7E03B","#C0552B","#D8A736"]},
+  {file:"02-nocturne.html", no:"02", nm:"Nocturne",
+   ds:"Dark scientific instrument. Near-black with a faint grid, phosphor-lime readouts that glow, amber + cyan signals.",
+   font:"Archivo · IBM Plex Mono", mood:"Dark / technical",
+   sw:["#0C100E","#9EF01A","#FFB347","#38E0C9","#FF5A4D"]},
+  {file:"03-botanical-editorial.html", no:"03", nm:"Botanical Editorial",
+   ds:"Magazine layout. Huge light Newsreader serif, generous whitespace, hairline rules, a single coral accent on sage + olive.",
+   font:"Newsreader · Hanken", mood:"Airy / editorial",
+   sw:["#FBF7EF","#14271C","#E2553B","#7C9A6E","#C79A3C"]},
+  {file:"04-blueprint.html", no:"04", nm:"Blueprint",
+   ds:"Drafting-table technical. Deep navy ground, dashed rules, corner ticks, hatched progress bars, cyan + amber callouts.",
+   font:"Archivo · Spline Sans Mono", mood:"Cool / engineered",
+   sw:["#0A2540","#34D1C4","#5BA8FF","#FFC65C","#FF6B6B"]},
+  {file:"05-brutalist.html", no:"05", nm:"Brutalist",
+   ds:"Raw and loud. Thick black borders, hard drop-shadows, acid-lime fills, blocky Archivo Black caps. Maximum contrast.",
+   font:"Archivo Black · Space Mono", mood:"Bold / utilitarian",
+   sw:["#F4F1E8","#0A0A0A","#C6F000","#FF2E17","#1E48FF"]},
+  {file:"06-brutalist-noir.html", no:"06", nm:"Brutalist Noir",
+   ds:"The brutalist, after dark. Near-black ground, bone borders + type, acid-lime fills, status-colored offset shadows (lime / red / blue). Same blocky bones, max drama.",
+   font:"Archivo Black · Space Mono", mood:"Bold / dark",
+   sw:["#0B0B0B","#F4F1E8","#C6F000","#FF3B22","#3D6BFF"]},
+];
+let active = 0;
+const frame = document.getElementById("frame");
+const newtab = document.getElementById("newtab");
+function select(i){
+  active = i;
+  frame.src = THEMES[i].file;
+  newtab.href = THEMES[i].file;
+  document.querySelectorAll(".card").forEach((c,j)=>c.classList.toggle("on", j===i));
+}
+document.getElementById("cards").innerHTML = THEMES.map((t,i)=>`
+  <div class="card ${i===0?'on':''}" data-i="${i}">
+    <div class="no">${t.no}</div>
+    <div class="nm">${t.nm}</div>
+    <div class="ds">${t.ds}</div>
+    <div class="swatches">${t.sw.map(c=>`<span class="sw" style="background:${c}"></span>`).join("")}</div>
+    <div class="meta"><span><b>Type</b> ${t.font}</span></div>
+    <div class="meta"><span><b>Mood</b> ${t.mood}</span></div>
+    <a class="open" href="${t.file}" target="_blank" onclick="event.stopPropagation()">Open full screen ↗</a>
+  </div>`).join("");
+document.querySelectorAll(".card").forEach(c=>c.onclick=()=>select(+c.dataset.i));
+</script>
+</body>
+</html>
