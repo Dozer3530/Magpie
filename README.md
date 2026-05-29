@@ -68,6 +68,10 @@ It opens your browser to a local FastAPI server bound to `127.0.0.1` only —
 single-user, no auth, never exposed to the network (the templates carry real
 client monitoring-point coordinates).
 
+For a one-click desktop launcher, make a shortcut to `run-web.bat` (set its icon
+to `assets/magpie.ico`). Double-click it: a small status window opens and your
+browser pops up once the app is ready; close that window to stop Magpie.
+
 > **Run one frontend at a time** against the same `packages.sqlite`. It's a
 > single-user tool, so this is fine — but two simultaneous editors of one row
 > is a logical conflict SQLite won't resolve. (The DB runs in WAL mode, which
