@@ -1,0 +1,6 @@
+# Web frontend (local FastAPI server). Pulls in the core deps too.
+# Install with:  pip install -r requirements-web.txt
+-r requirements.txt
+fastapi>=0.110
+uvicorn>=0.27
+python-multipart>=0.0.9
