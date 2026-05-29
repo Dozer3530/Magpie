@@ -19,3 +19,9 @@ Thumbs.db
 # Backups
 *.bak
 ~$*
+
+# Local dev tooling — not part of the shipped product.
+# sample_imports/: fake-CSV generator + its output (output carries real coords).
+# demo/themes/: the theme-selector gallery used to pick the web look.
+/sample_imports/
+/demo/themes/

@@ -1,3 +1,0 @@
-# The generated CSVs carry the templates' real monitoring-point coordinates
-# (Location column) — never commit them. Regenerate with _generate.py.
-*.csv
