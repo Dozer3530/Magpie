@@ -18,8 +18,8 @@ service — both columns inherit it for free.
 | Auto-seed current week on launch | `weeks.ensure_current_week` | `main_window` startup | `lifespan` startup |
 | Create week | `weeks.create_week` | week toolbar | `POST /api/weeks` |
 | Delete week | `weeks.delete_week` | week toolbar | `DELETE /api/weeks/{tag}` |
-| Rename a week's code (PK migration) | `weeks.rename_week` (→ `db.rename_week`, `image_storage.rename_week_dirs`) | _pending_ | `POST /api/weeks/rename` |
-| Multi-week Field/Lab progress | `weeks.all_weeks_progress` (uses `schema.field_page_names`/`lab_page_names`) | _pending_ | `GET /api/weeks/progress` |
+| Rename a week's code (PK migration) | `weeks.rename_week` (→ `db.rename_week`, `image_storage.rename_week_dirs`) | Weeks tab + week toolbar | `POST /api/weeks/rename` |
+| Multi-week Field/Lab progress | `weeks.all_weeks_progress` (uses `schema.field_page_names`/`lab_page_names`) | Weeks tab (`app/ui/weeks_tab.py`) | `GET /api/weeks/progress` |
 | Week overview / per-location status | `exports.week_status` | Week-overview tab | `GET /api/overview` |
 | Observation form layout | `observations.build_form_schema` | Observations tab (`_rebuild_form`) | `GET /api/form-schema` |
 | Load one location's row | `observations.load` | Observations tab | `GET /api/obs` |
@@ -58,11 +58,5 @@ this test fails.
 When you add a feature: add the logic to `app/services/`, wire both frontends
 to it, and — if it produces an export artifact — extend the parity test.
 
-## Desktop fast-follow (currently web-only)
-
-Two rows above are marked _pending_ on the desktop side: **rename week** and the
-**multi-week Field/Lab progress dashboard** shipped to the web frontend first.
-The logic lives in `app/services/weeks.py` (with tests in
-`tests/test_weeks_feature.py`), so closing the gap is a pure Qt wiring task —
-no new core code. Until then the desktop keeps working unchanged; these are
-additive service functions it simply doesn't call yet.
+Both frontends are now feature-complete against the service layer — every row
+above has a desktop entry point and a web route calling the same function.
