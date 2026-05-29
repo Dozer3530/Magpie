@@ -19,7 +19,7 @@ def main() -> None:
         webbrowser.open(url)
     except Exception:
         pass
-    print(f"Magpie web frontend → {url}  (Ctrl+C to stop)")
+    print(f"Magpie web frontend -> {url}  (Ctrl+C to stop)")
     uvicorn.run("webapp.server:app", host=HOST, port=PORT, reload=False)
 
 
