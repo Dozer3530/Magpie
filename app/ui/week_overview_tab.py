@@ -19,8 +19,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.crops import CROPS
-from app.db import connect, list_locations, list_obs_for_week
-from app.schema import read_template_fields
+from app.services import exports as exports_service
 
 
 class WeekOverviewTab(QWidget):
@@ -74,33 +73,16 @@ class WeekOverviewTab(QWidget):
         for crop in CROPS:
             table = self._crop_tables[crop.code]
             totals = self._totals_labels[crop.code]
-            fields = read_template_fields(crop.template_path)
-            # Data columns are everything except ID, Location, and Images.
-            expected = sum(
-                1 for f in fields
-                if f.name not in ("ID", "Location", "Images")
-            )
-            with connect() as conn:
-                locs = list_locations(conn, crop.code)
-                obs_by_loc = {
-                    r["location_id"]: dict(r)
-                    for r in list_obs_for_week(conn, crop.code, week)
-                }
+            status = exports_service.week_status(crop.code, week)
+            expected = status.expected_fields
+            locs = status.locations
 
             table.setRowCount(len(locs))
-            locs_with_data = 0
             total_fields_filled = 0
             for r, loc in enumerate(locs):
-                loc_id = loc["location_id"]
-                row = obs_by_loc.get(loc_id, {})
-                filled = sum(
-                    1 for k, v in row.items()
-                    if k not in ("iso_week", "location_id") and v not in (None, "")
-                )
-                if filled:
-                    locs_with_data += 1
+                filled = loc.filled
                 total_fields_filled += filled
-                table.setItem(r, 0, QTableWidgetItem(loc_id))
+                table.setItem(r, 0, QTableWidgetItem(loc.location_id))
                 fill_item = QTableWidgetItem(str(filled))
                 fill_item.setTextAlignment(Qt.AlignCenter)
                 if filled == 0:
@@ -113,7 +95,7 @@ class WeekOverviewTab(QWidget):
 
             pct = (total_fields_filled / (expected * len(locs)) * 100) if locs and expected else 0
             totals.setText(
-                f"{locs_with_data} / {len(locs)} locations have data — "
+                f"{status.locations_with_data} / {len(locs)} locations have data — "
                 f"{total_fields_filled} / {expected * len(locs)} fields filled "
                 f"({pct:.0f}%)"
             )

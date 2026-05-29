@@ -39,24 +39,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app.crops import crop_by_code
-from app.db import (
-    connect,
-    list_growth_stages,
-    list_locations,
-    load_obs_row,
-    save_obs_row,
-)
-from app.schema import (
-    Field,
-    FieldKind,
-    pair_disease_fields,
-    pair_nutrient_fields,
-    pair_ratio_fields,
-    petal_test_fields,
-    read_template_fields,
-    tdr_fields,
-)
+from app.db import connect, list_locations
+from app.schema import Field, FieldKind
+from app.services import observations as obs_service
 from app.ui.image_attach_widget import ImageAttachWidget
 
 
@@ -143,6 +128,7 @@ class ObservationsTab(QWidget):
         self._main = main_window
         self._bindings: dict[str, FieldBinding] = {}
         self._current_crop: str | None = None  # what we last built the form for
+        self._growth_stages: list[tuple[str, str]] = []
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -283,174 +269,113 @@ class ObservationsTab(QWidget):
     def _rebuild_form(self, crop_code: str) -> None:
         self._clear_form()
         self._current_crop = crop_code
-        crop = crop_by_code(crop_code)
-        fields = read_template_fields(crop.template_path)
-        by_name = {f.name: f for f in fields}
-        # Keyed by unit-free name so hardcoded lookups (TDR_1_SOIL_TEMPERATURE)
-        # still resolve when the header carries a unit (e.g. "... (°C)").
-        by_key = {f.key: f for f in fields}
 
-        with connect() as conn:
-            growth_stages = [
-                (r["code"], r["description"])
-                for r in list_growth_stages(conn, crop_code)
-            ]
+        # The form *structure* comes from the shared service so the desktop and
+        # web frontends render the identical screen. This tab only turns that
+        # structure into widgets.
+        schema = obs_service.build_form_schema(crop_code)
+        self._growth_stages = schema.growth_stages
 
-        field_host = self.field_host
-        lab_host = self.lab_host
-        field_layout = self.field_host_layout
-        lab_layout = self.lab_host_layout
+        for section in schema.sections:
+            host = self.field_host if section.page == "field" else self.lab_host
+            layout = self.field_host_layout if section.page == "field" else self.lab_host_layout
+            box = self._build_section(section, host)
+            layout.addWidget(box)
 
-        # ====================================================================
-        # FIELD OBSERVATIONS PAGE
-        # ====================================================================
+        self.field_host_layout.addStretch(1)
+        self.lab_host_layout.addStretch(1)
 
-        # --- Section: Header (Date_Time, Growth stage) ---------------------
-        header_box = QGroupBox("Observation header", field_host)
-        hf = QFormLayout(header_box)
-        for name in ("Date_Time",):
-            f = by_name.get(name)
-            if f:
-                w = _make_widget(f, header_box, growth_stages)
-                self._bindings[name] = FieldBinding(f, w)
-                hf.addRow(self._label_for(f), w)
-        for f in fields:
-            if f.kind == FieldKind.GROWTH_STAGE:
-                w = _make_widget(f, header_box, growth_stages)
+    def _build_section(self, section, host: QWidget) -> QGroupBox:
+        box = QGroupBox(section.title, host)
+        gs = self._growth_stages
+
+        if section.kind == "tdr_grid":
+            grid = QGridLayout(box)
+            grid.addWidget(QLabel("<b>Sensor</b>", box), 0, 0)
+            grid.addWidget(QLabel("<b>Temperature</b>", box), 0, 1)
+            grid.addWidget(QLabel("<b>EC</b>", box), 0, 2)
+            grid.addWidget(QLabel("<b>Moisture</b>", box), 0, 3)
+            for r, tdr in enumerate(section.tdr_rows, start=1):
+                grid.addWidget(QLabel(tdr.sensor_label, box), r, 0)
+                for c, f in enumerate((tdr.temperature, tdr.ec, tdr.moisture), start=1):
+                    if f is not None:
+                        w = _make_widget(f, box, gs)
+                        self._bindings[f.name] = FieldBinding(f, w)
+                        grid.addWidget(w, r, c)
+            return box
+
+        if section.kind == "disease_table":
+            grid = QGridLayout(box)
+            grid.addWidget(QLabel("<b>Disease</b>", box), 0, 0)
+            grid.addWidget(QLabel("<b>Presence</b>", box), 0, 1)
+            grid.addWidget(QLabel("<b>Severity</b>", box), 0, 2)
+            for i, row in enumerate(section.disease_rows, start=1):
+                grid.addWidget(QLabel(row.label, box), i, 0)
+                pw = _make_widget(row.presence, box, gs)
+                self._bindings[row.presence.name] = FieldBinding(row.presence, pw)
+                grid.addWidget(pw, i, 1)
+                if row.severity:
+                    sw = _make_widget(row.severity, box, gs)
+                    self._bindings[row.severity.name] = FieldBinding(row.severity, sw)
+                    grid.addWidget(sw, i, 2)
+            grid.setColumnStretch(0, 2)
+            grid.setColumnStretch(1, 1)
+            grid.setColumnStretch(2, 1)
+            return box
+
+        if section.kind == "nutrient_table":
+            grid = QGridLayout(box)
+            grid.addWidget(QLabel("<b>Nutrient</b>", box), 0, 0)
+            grid.addWidget(QLabel("<b>Value</b>", box), 0, 1)
+            grid.addWidget(QLabel("<b>Rate</b>", box), 0, 2)
+            for i, row in enumerate(section.nutrient_rows, start=1):
+                grid.addWidget(QLabel(row.value.name, box), i, 0)
+                vw = _make_widget(row.value, box, gs)
+                self._bindings[row.value.name] = FieldBinding(row.value, vw)
+                grid.addWidget(vw, i, 1)
+                if row.rate:
+                    rw = _make_widget(row.rate, box, gs)
+                    self._bindings[row.rate.name] = FieldBinding(row.rate, rw)
+                    grid.addWidget(rw, i, 2)
+            grid.setColumnStretch(0, 1)
+            grid.setColumnStretch(1, 1)
+            grid.setColumnStretch(2, 1)
+            return box
+
+        if section.kind == "ratio_table":
+            grid = QGridLayout(box)
+            grid.addWidget(QLabel("<b>Ratio</b>", box), 0, 0)
+            grid.addWidget(QLabel("<b>Actual</b>", box), 0, 1)
+            grid.addWidget(QLabel("<b>Expected</b>", box), 0, 2)
+            for i, row in enumerate(section.ratio_rows, start=1):
+                grid.addWidget(QLabel(row.name, box), i, 0)
+                aw = _make_widget(row.actual, box, gs)
+                self._bindings[row.actual.name] = FieldBinding(row.actual, aw)
+                grid.addWidget(aw, i, 1)
+                if row.expected:
+                    ew = _make_widget(row.expected, box, gs)
+                    self._bindings[row.expected.name] = FieldBinding(row.expected, ew)
+                    grid.addWidget(ew, i, 2)
+            grid.setColumnStretch(0, 1)
+            grid.setColumnStretch(1, 1)
+            grid.setColumnStretch(2, 1)
+            return box
+
+        if section.kind == "images":
+            v = QVBoxLayout(box)
+            for f in section.fields:
+                w = _make_widget(f, box, gs)
                 self._bindings[f.name] = FieldBinding(f, w)
-                hf.addRow(self._label_for(f), w)
-        field_layout.addWidget(header_box)
+                v.addWidget(w)
+            return box
 
-        # --- Section: Soil (TDR sensors) -----------------------------------
-        soil_box = QGroupBox("Soil readings (TDR)", field_host)
-        soil_grid = QGridLayout(soil_box)
-        soil_grid.addWidget(QLabel("<b>Sensor</b>", soil_box), 0, 0)
-        soil_grid.addWidget(QLabel("<b>Temperature</b>", soil_box), 0, 1)
-        soil_grid.addWidget(QLabel("<b>EC</b>", soil_box), 0, 2)
-        soil_grid.addWidget(QLabel("<b>Moisture</b>", soil_box), 0, 3)
-        for sensor_idx in (1, 2, 3):
-            r = sensor_idx
-            soil_grid.addWidget(QLabel(f"TDR {sensor_idx}", soil_box), r, 0)
-            for c, suffix in enumerate(("TEMPERATURE", "EC", "MOISTURE"), start=1):
-                fkey = f"TDR_{sensor_idx}_SOIL_{suffix}"
-                f = by_key.get(fkey)
-                if f:
-                    w = _make_widget(f, soil_box, growth_stages)
-                    # Bindings are keyed by the DB column = full header (f.name).
-                    self._bindings[f.name] = FieldBinding(f, w)
-                    soil_grid.addWidget(w, r, c)
-        field_layout.addWidget(soil_box)
-
-        # --- Section: Diseases ---------------------------------------------
-        disease_box = QGroupBox("Diseases", field_host)
-        d_grid = QGridLayout(disease_box)
-        d_grid.addWidget(QLabel("<b>Disease</b>", disease_box), 0, 0)
-        d_grid.addWidget(QLabel("<b>Presence</b>", disease_box), 0, 1)
-        d_grid.addWidget(QLabel("<b>Severity</b>", disease_box), 0, 2)
-        for i, (presence, severity) in enumerate(pair_disease_fields(fields), start=1):
-            d_grid.addWidget(QLabel(self._disease_display(presence.name), disease_box), i, 0)
-            pw = _make_widget(presence, disease_box, growth_stages)
-            self._bindings[presence.name] = FieldBinding(presence, pw)
-            d_grid.addWidget(pw, i, 1)
-            if severity:
-                sw = _make_widget(severity, disease_box, growth_stages)
-                self._bindings[severity.name] = FieldBinding(severity, sw)
-                d_grid.addWidget(sw, i, 2)
-        d_grid.setColumnStretch(0, 2)
-        d_grid.setColumnStretch(1, 1)
-        d_grid.setColumnStretch(2, 1)
-        field_layout.addWidget(disease_box)
-
-        # --- Section: Insects ----------------------------------------------
-        insect_box = QGroupBox("Insects", field_host)
-        i_form = QFormLayout(insect_box)
-        for name in ("Insect_Damage", "Insect_Damage_Severity", "Insect_Identification"):
-            f = by_name.get(name)
-            if f:
-                w = _make_widget(f, insect_box, growth_stages)
-                self._bindings[name] = FieldBinding(f, w)
-                i_form.addRow(self._label_for(f), w)
-        field_layout.addWidget(insect_box)
-
-        # --- Section: Petal test (canola only) -----------------------------
-        petal = petal_test_fields(fields)
-        if petal:
-            petal_box = QGroupBox("Petal test", field_host)
-            p_form = QFormLayout(petal_box)
-            for f in petal:
-                w = _make_widget(f, petal_box, growth_stages)
-                self._bindings[f.name] = FieldBinding(f, w)
-                p_form.addRow(self._label_for(f), w)
-            field_layout.addWidget(petal_box)
-
-        # --- Section: Images -----------------------------------------------
-        if "Images" in by_name:
-            f = by_name["Images"]
-            images_box = QGroupBox("Photos", field_host)
-            img_v = QVBoxLayout(images_box)
-            widget = _make_widget(f, images_box, growth_stages)
-            self._bindings["Images"] = FieldBinding(f, widget)
-            img_v.addWidget(widget)
-            field_layout.addWidget(images_box)
-
-        field_layout.addStretch(1)
-
-        # ====================================================================
-        # LAB REPORT PAGE
-        # ====================================================================
-
-        # --- Section: Report identifiers -----------------------------------
-        report_box = QGroupBox("Report identifiers", lab_host)
-        report_form = QFormLayout(report_box)
-        for name in ("ReportNo", "Lab_No.", "Disease_Report_Results"):
-            f = by_name.get(name)
-            if f:
-                w = _make_widget(f, report_box, growth_stages)
-                self._bindings[name] = FieldBinding(f, w)
-                report_form.addRow(self._label_for(f), w)
-        lab_layout.addWidget(report_box)
-
-        # --- Section: Nutrient panel ---------------------------------------
-        nut_box = QGroupBox("Nutrient panel", lab_host)
-        nut_grid = QGridLayout(nut_box)
-        nut_grid.addWidget(QLabel("<b>Nutrient</b>", nut_box), 0, 0)
-        nut_grid.addWidget(QLabel("<b>Value</b>", nut_box), 0, 1)
-        nut_grid.addWidget(QLabel("<b>Rate</b>", nut_box), 0, 2)
-        for i, (val_f, rate_f) in enumerate(pair_nutrient_fields(fields), start=1):
-            nut_grid.addWidget(QLabel(val_f.name, nut_box), i, 0)
-            vw = _make_widget(val_f, nut_box, growth_stages)
-            self._bindings[val_f.name] = FieldBinding(val_f, vw)
-            nut_grid.addWidget(vw, i, 1)
-            if rate_f:
-                rw = _make_widget(rate_f, nut_box, growth_stages)
-                self._bindings[rate_f.name] = FieldBinding(rate_f, rw)
-                nut_grid.addWidget(rw, i, 2)
-        nut_grid.setColumnStretch(0, 1)
-        nut_grid.setColumnStretch(1, 1)
-        nut_grid.setColumnStretch(2, 1)
-        lab_layout.addWidget(nut_box)
-
-        # --- Section: Nutrient ratios --------------------------------------
-        ratio_box = QGroupBox("Nutrient ratios", lab_host)
-        r_grid = QGridLayout(ratio_box)
-        r_grid.addWidget(QLabel("<b>Ratio</b>", ratio_box), 0, 0)
-        r_grid.addWidget(QLabel("<b>Actual</b>", ratio_box), 0, 1)
-        r_grid.addWidget(QLabel("<b>Expected</b>", ratio_box), 0, 2)
-        for i, (name, actual, expected) in enumerate(pair_ratio_fields(fields), start=1):
-            r_grid.addWidget(QLabel(name, ratio_box), i, 0)
-            aw = _make_widget(actual, ratio_box, growth_stages)
-            self._bindings[actual.name] = FieldBinding(actual, aw)
-            r_grid.addWidget(aw, i, 1)
-            if expected:
-                ew = _make_widget(expected, ratio_box, growth_stages)
-                self._bindings[expected.name] = FieldBinding(expected, ew)
-                r_grid.addWidget(ew, i, 2)
-        r_grid.setColumnStretch(0, 1)
-        r_grid.setColumnStretch(1, 1)
-        r_grid.setColumnStretch(2, 1)
-        lab_layout.addWidget(ratio_box)
-
-        lab_layout.addStretch(1)
+        # Default: "form" — a label/widget per field.
+        form = QFormLayout(box)
+        for f in section.fields:
+            w = _make_widget(f, box, gs)
+            self._bindings[f.name] = FieldBinding(f, w)
+            form.addRow(self._label_for(f), w)
+        return box
 
     @staticmethod
     def _label_for(field: Field) -> str:
@@ -476,8 +401,7 @@ class ObservationsTab(QWidget):
             for b in self._bindings.values():
                 b.set_value("")
             return
-        with connect() as conn:
-            row = load_obs_row(conn, crop, week, loc)
+        row = obs_service.load(crop, week, loc)
         for name, binding in self._bindings.items():
             binding.set_value(row.get(name, ""))
         if row:
@@ -494,8 +418,7 @@ class ObservationsTab(QWidget):
             return
         values = {name: binding.get_value() for name, binding in self._bindings.items()}
         try:
-            with connect() as conn:
-                save_obs_row(conn, crop, week, loc, values)
+            obs_service.save(crop, week, loc, values)
         except Exception as exc:
             QMessageBox.critical(self, "Save failed", str(exc))
             return

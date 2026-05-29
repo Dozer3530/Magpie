@@ -16,7 +16,6 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
-import zipfile
 from pathlib import Path
 
 from PySide6.QtWidgets import (
@@ -31,12 +30,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app.config import EXPORTS_DIR
-from app.crops import CROPS, crop_by_code
-from app.db import connect, list_locations, list_obs_for_week
-from app.exporters.excel_export import export_excel, export_filename as excel_filename
-from app.exporters.gpkg_export import export_gpkg, export_filename as gpkg_filename
-from app.exporters.images_export import copy_week_images
+from app.crops import crop_by_code
+from app.services import exports as exports_service
+from app.services.exports import ExportResult
 
 
 class ExportTab(QWidget):
@@ -113,25 +109,16 @@ class ExportTab(QWidget):
         self.export_one_btn.setEnabled(True)
         self.export_all_btn.setEnabled(True)
 
-        # Per-location status
-        with connect() as conn:
-            locs = list_locations(conn, crop)
-            obs = {r["location_id"]: dict(r) for r in list_obs_for_week(conn, crop, week)}
+        # Per-location status (computed by the shared service).
+        status = exports_service.week_status(crop, week)
         lines = []
-        filled_total = 0
-        for loc in locs:
-            row = obs.get(loc["location_id"], {})
-            filled = sum(
-                1 for k, v in row.items()
-                if k not in ("iso_week", "location_id") and v not in (None, "")
-            )
-            filled_total += filled
+        for loc in status.locations:
             lines.append(
-                f"  {loc['location_id']:>3}  ({loc['lat']}, {loc['lon']})  — "
-                f"{filled} fields with data" + ("" if filled else "   [blank]")
+                f"  {loc.location_id:>3}  ({loc.lat}, {loc.lon})  — "
+                f"{loc.filled} fields with data" + ("" if loc.filled else "   [blank]")
             )
         self.status_view.setPlainText(
-            f"{len(locs)} locations, {sum(1 for l in locs if obs.get(l['location_id']))} "
+            f"{status.total_locations} locations, {status.locations_with_data} "
             f"with at least one obs row.\n\n" + "\n".join(lines)
         )
         # Reset the "Open folder" button until a successful export this turn
@@ -140,82 +127,31 @@ class ExportTab(QWidget):
     # ---- export actions -----------------------------------------------
 
     def _week_dir(self, iso_week: str) -> Path:
-        return EXPORTS_DIR / iso_week
+        return exports_service.week_dir(iso_week)
 
     def _on_export_one(self) -> None:
         crop = self._main.current_crop_code()
         week = self._main.current_iso_week()
         if not (crop and week):
             return
-        produced = self._export_crop(crop, week)
-        zip_path = self._zip_week(week) if produced else None
-        if zip_path:
-            produced.append(zip_path)
-        self._show_result(week, produced)
+        self._show_result(exports_service.build_week_package(crop, week))
 
     def _on_export_all(self) -> None:
         week = self._main.current_iso_week()
         if not week:
             return
-        produced: list[Path] = []
-        for crop_cfg in CROPS:
-            produced.extend(self._export_crop(crop_cfg.code, week))
-        zip_path = self._zip_week(week) if produced else None
-        if zip_path:
-            produced.append(zip_path)
-        self._show_result(week, produced)
+        self._show_result(exports_service.build_all(week))
 
-    def _export_crop(self, crop_code: str, iso_week: str) -> list[Path]:
-        out_dir = self._week_dir(iso_week)
-        out_dir.mkdir(parents=True, exist_ok=True)
-        xlsx_path = out_dir / excel_filename(crop_code, iso_week)
-        gpkg_path = out_dir / gpkg_filename(crop_code, iso_week)
-        try:
-            export_excel(crop_code, iso_week, xlsx_path)
-            export_gpkg(crop_code, iso_week, gpkg_path)
-            copy_week_images(crop_code, iso_week, out_dir)
-        except Exception as exc:
+    def _show_result(self, result: ExportResult) -> None:
+        for crop_code, message in result.errors:
             QMessageBox.critical(
-                self, "Export failed",
-                f"{crop_code} / {iso_week}\n\n{type(exc).__name__}: {exc}",
+                self, "Export failed", f"{crop_code} / {result.week}\n\n{message}"
             )
-            return []
-        return [xlsx_path, gpkg_path]
-
-    def _zip_week(self, iso_week: str) -> Path | None:
-        """Bundle everything in the week folder into EarthDaily_<week>.zip.
-
-        The zip lives next to the unzipped contents so the user can decide
-        which to send and still inspect/replace anything by hand.
-        """
-        week_dir = self._week_dir(iso_week)
-        if not week_dir.is_dir():
-            return None
-        zip_path = week_dir / f"EarthDaily_{iso_week}.zip"
-        # Atomically write to a temp name then rename so a half-zip never
-        # leaves a confusing file behind.
-        tmp_path = zip_path.with_suffix(".zip.tmp")
-        try:
-            with zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_DEFLATED) as zf:
-                for path in sorted(week_dir.rglob("*")):
-                    if path == zip_path or path == tmp_path:
-                        continue
-                    if path.is_file():
-                        zf.write(path, path.relative_to(week_dir))
-            if zip_path.exists():
-                zip_path.unlink()
-            tmp_path.rename(zip_path)
-        except Exception:
-            tmp_path.unlink(missing_ok=True)
-            raise
-        return zip_path
-
-    def _show_result(self, iso_week: str, produced: list[Path]) -> None:
-        if not produced:
+        if not result.produced:
             self.result_label.setText("")
             return
-        lines = [f"Wrote {len(produced)} file(s) to {self._week_dir(iso_week)}:"]
-        for p in produced:
+        lines = [f"Wrote {len(result.produced)} file(s) to {self._week_dir(result.week)}:"]
+        for p in result.produced:
             lines.append(f"  • {p.name}")
         self.result_label.setText("\n".join(lines))
         self.open_folder_btn.setEnabled(True)

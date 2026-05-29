@@ -26,37 +26,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app import app_settings, image_storage
-from app.crops import crop_by_code
-from app.db import connect, list_locations, save_obs_row
-from app.importers.core import LoadedFile, load_for_crop, project_row
+from app import app_settings
+from app.importers.core import LoadedFile
+from app.services import imports as imports_service
 
 _SETTING_LAST_DIR = "survey_import_last_dir"
-
-
-def _find_photo_index(source_csv: Path) -> dict[str, Path]:
-    """Scan the source's parent folder for image files keyed by filename.
-
-    Survey123 exports drop photos either in the same folder as the CSV or in
-    a single-level subfolder (commonly `media/` or `<survey_name>/`). We
-    handle both by indexing every image found within 1 level of the CSV.
-    """
-    parent = source_csv.parent
-    if not parent.is_dir():
-        return {}
-    index: dict[str, Path] = {}
-    # Same folder
-    for p in parent.iterdir():
-        if p.is_file() and p.suffix.lower() in image_storage.IMAGE_EXTS:
-            index.setdefault(p.name, p)
-    # One level deep
-    for sub in parent.iterdir():
-        if not sub.is_dir():
-            continue
-        for p in sub.iterdir():
-            if p.is_file() and p.suffix.lower() in image_storage.IMAGE_EXTS:
-                index.setdefault(p.name, p)
-    return index
 
 
 class SurveyImportTab(QWidget):
@@ -125,10 +99,7 @@ class SurveyImportTab(QWidget):
         crop_code = self._main.current_crop_code()
         self._valid_locations = set()
         if crop_code:
-            with connect() as conn:
-                self._valid_locations = {
-                    r["location_id"] for r in list_locations(conn, crop_code)
-                }
+            self._valid_locations = imports_service.valid_locations(crop_code)
         # Different crop → previous file's mapping is stale. Clear it.
         if self._loaded:
             self.summary.setPlainText(
@@ -164,8 +135,7 @@ class SurveyImportTab(QWidget):
             QMessageBox.information(self, "Pick a crop", "Choose a crop first.")
             return
         try:
-            crop = crop_by_code(crop_code)
-            loaded = load_for_crop(path, crop.template_path)
+            loaded = imports_service.prepare(path, crop_code)
         except Exception as exc:
             QMessageBox.critical(self, "Could not read file", f"{exc}")
             return
@@ -282,64 +252,20 @@ class SurveyImportTab(QWidget):
             QMessageBox.information(self, "Import", "Pick the source ID column first.")
             return
 
-        # Scan the source file's neighborhood for photos that match any
-        # Images-column reference. If found, we'll copy them into the app's
-        # image storage as part of the import.
-        photo_index = _find_photo_index(self._loaded.path)
-        photos_copied = 0
-        photos_missing = 0
-
-        imported = 0
-        skipped_no_loc = 0
-        skipped_empty = 0
-        with connect() as conn:
-            for row in self._loaded.rows:
-                loc_id = row.get(id_col, "").strip()
-                if loc_id not in self._valid_locations:
-                    skipped_no_loc += 1
-                    continue
-                values = project_row(row, self._loaded.mapping)
-                if not values:
-                    skipped_empty += 1
-                    continue
-                # Handle Images column specially: copy referenced files
-                # into image_storage and rewrite the cell with the final names.
-                if "Images" in values:
-                    referenced = image_storage.parse_list(values["Images"])
-                    stored_names: list[str] = []
-                    for name in referenced:
-                        src = photo_index.get(name)
-                        if src is None:
-                            photos_missing += 1
-                            # Still record the filename so the user can drop the
-                            # file in later via the Observations tab.
-                            stored_names.append(name)
-                            continue
-                        try:
-                            stored = image_storage.attach(
-                                crop_code, iso_week, loc_id, src
-                            )
-                            stored_names.append(stored)
-                            photos_copied += 1
-                        except Exception:
-                            photos_missing += 1
-                            stored_names.append(name)
-                    values["Images"] = image_storage.format_list(stored_names)
-                save_obs_row(conn, crop_code, iso_week, loc_id, values)
-                imported += 1
+        res = imports_service.commit_survey(self._loaded, crop_code, iso_week, id_col)
 
         msg_lines = [
-            f"Imported {imported} rows into {crop_code} / {iso_week}.",
-            f"Skipped {skipped_no_loc} rows whose ID didn't match a known location.",
-            f"Skipped {skipped_empty} rows with no mapped values.",
+            f"Imported {res.imported} rows into {crop_code} / {iso_week}.",
+            f"Skipped {res.skipped_no_loc} rows whose ID didn't match a known location.",
+            f"Skipped {res.skipped_empty} rows with no mapped values.",
         ]
-        if photos_copied or photos_missing:
+        if res.photos_copied or res.photos_missing:
             msg_lines.append("")
-            msg_lines.append(f"Photos copied into storage: {photos_copied}.")
-            if photos_missing:
+            msg_lines.append(f"Photos copied into storage: {res.photos_copied}.")
+            if res.photos_missing:
                 msg_lines.append(
-                    f"Photo references not found near the source file: {photos_missing}. "
+                    f"Photo references not found near the source file: {res.photos_missing}. "
                     "Drop them in via the Observations tab when available."
                 )
         QMessageBox.information(self, "Import complete", "\n".join(msg_lines))
-        self.status_label.setText(f"Last import: {imported} rows.")
+        self.status_label.setText(f"Last import: {res.imported} rows.")

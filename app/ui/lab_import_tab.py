@@ -28,9 +28,9 @@ from PySide6.QtWidgets import (
 )
 
 from app import app_settings
-from app.crops import crop_by_code
-from app.db import connect, list_locations, save_obs_row
-from app.importers.core import LoadedFile, load_for_crop, project_row
+from app.importers.core import LoadedFile
+from app.services import imports as imports_service
+from app.services.imports import DuplicateTargetError
 
 _SETTING_LAST_DIR = "lab_import_last_dir"
 _SKIP = "(skip)"
@@ -92,10 +92,7 @@ class LabImportTab(QWidget):
         crop_code = self._main.current_crop_code()
         self._location_ids = []
         if crop_code:
-            with connect() as conn:
-                self._location_ids = [
-                    r["location_id"] for r in list_locations(conn, crop_code)
-                ]
+            self._location_ids = sorted(imports_service.valid_locations(crop_code))
         if self._loaded:
             self.summary.setPlainText(
                 "Crop changed — reload the lab file to re-map columns to the new crop."
@@ -130,8 +127,7 @@ class LabImportTab(QWidget):
             QMessageBox.information(self, "Pick a crop", "Choose a crop first.")
             return
         try:
-            crop = crop_by_code(crop_code)
-            loaded = load_for_crop(path, crop.template_path)
+            loaded = imports_service.prepare(path, crop_code)
         except Exception as exc:
             QMessageBox.critical(self, "Could not read file", f"{exc}")
             return
@@ -239,45 +235,23 @@ class LabImportTab(QWidget):
             QMessageBox.information(self, "Import", "Pick a crop and week first.")
             return
 
-        # Validate one-to-one: each location can only receive one row this
-        # import. If the user double-assigned a location, warn before commit.
-        assignments: dict[str, int] = {}
-        for r, combo in enumerate(self._row_combos):
-            loc = combo.currentData()
-            if not loc:
-                continue
-            if loc in assignments:
-                QMessageBox.warning(
-                    self,
-                    "Duplicate target location",
-                    f"Location {loc} is assigned to both row {assignments[loc] + 1} "
-                    f"and row {r + 1}. Each location can receive at most one row "
-                    f"per import.",
-                )
-                return
-            assignments[loc] = r
-
-        imported = 0
-        skipped_no_target = 0
-        skipped_empty = 0
-        with connect() as conn:
-            for r, combo in enumerate(self._row_combos):
-                loc_id = combo.currentData()
-                if not loc_id:
-                    skipped_no_target += 1
-                    continue
-                row = self._loaded.rows[r]
-                values = project_row(row, self._loaded.mapping)
-                if not values:
-                    skipped_empty += 1
-                    continue
-                save_obs_row(conn, crop_code, iso_week, loc_id, values)
-                imported += 1
+        # Per-row target assignment from the dropdowns; the service validates
+        # one-to-one and commits.
+        row_targets = {
+            r: combo.currentData()
+            for r, combo in enumerate(self._row_combos)
+            if combo.currentData()
+        }
+        try:
+            res = imports_service.commit_lab(self._loaded, crop_code, iso_week, row_targets)
+        except DuplicateTargetError as exc:
+            QMessageBox.warning(self, "Duplicate target location", str(exc))
+            return
 
         msg = (
-            f"Imported {imported} lab rows into {crop_code} / {iso_week}.\n"
-            f"Skipped {skipped_no_target} rows set to (skip).\n"
-            f"Skipped {skipped_empty} rows with no mapped values."
+            f"Imported {res.imported} lab rows into {crop_code} / {iso_week}.\n"
+            f"Skipped {res.skipped_no_target} rows set to (skip).\n"
+            f"Skipped {res.skipped_empty} rows with no mapped values."
         )
         QMessageBox.information(self, "Import complete", msg)
-        self.status_label.setText(f"Last import: {imported} rows.")
+        self.status_label.setText(f"Last import: {res.imported} rows.")

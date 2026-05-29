@@ -5,8 +5,6 @@ pair changes. Tabs subscribe and re-render themselves.
 """
 from __future__ import annotations
 
-from datetime import date
-
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QComboBox,
@@ -21,13 +19,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app.db import (
-    connect,
-    delete_week,
-    list_crops,
-    list_weeks,
-    upsert_week,
-)
+from app.db import connect, list_crops
+from app.services import weeks as weeks_service
 from app.ui.export_tab import ExportTab
 from app.ui.lab_import_tab import LabImportTab
 from app.ui.observations_tab import ObservationsTab
@@ -71,11 +64,7 @@ class MainWindow(QMainWindow):
 
     def _auto_create_current_week_if_empty(self) -> None:
         """First-launch convenience: if no weeks exist, seed the current ISO week."""
-        with connect() as conn:
-            if list_weeks(conn):
-                return
-            iso_year, iso_week, _ = date.today().isocalendar()
-            upsert_week(conn, f"{iso_year}-W{iso_week:02d}")
+        weeks_service.ensure_current_week()
 
     # ---- top bar ------------------------------------------------------------
 
@@ -115,9 +104,7 @@ class MainWindow(QMainWindow):
     def _populate_week_combo(self, prefer: str | None = None) -> None:
         self.week_combo.blockSignals(True)
         self.week_combo.clear()
-        with connect() as conn:
-            weeks = list_weeks(conn)
-        for w in weeks:
+        for w in weeks_service.list_week_rows():
             label = w["iso_week"] + (f" — {w['label']}" if w["label"] else "")
             self.week_combo.addItem(label, w["iso_week"])
         if prefer:
@@ -141,8 +128,7 @@ class MainWindow(QMainWindow):
         if confirm != QMessageBox.Yes:
             return
         try:
-            with connect() as conn:
-                delete_week(conn, week)
+            weeks_service.delete_week(week)
         except Exception as exc:
             QMessageBox.critical(self, "Delete failed", str(exc))
             return
@@ -150,9 +136,7 @@ class MainWindow(QMainWindow):
         self._on_context_changed()
 
     def _on_new_week_clicked(self) -> None:
-        today = date.today()
-        iso_year, iso_week, _ = today.isocalendar()
-        default = f"{iso_year}-W{iso_week:02d}"
+        default = weeks_service.current_iso_week()
         text, ok = QInputDialog.getText(
             self,
             "New week",
@@ -165,8 +149,7 @@ class MainWindow(QMainWindow):
         if not tag:
             return
         try:
-            with connect() as conn:
-                upsert_week(conn, tag)
+            weeks_service.create_week(tag)
         except Exception as exc:
             QMessageBox.warning(self, "Could not create week", str(exc))
             return
