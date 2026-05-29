@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Magpie — Weekly Package Builder · Web Concept</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,400..700&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#F2EDE1;        /* bone paper            */
+    --paper-2:#EAE3D2;      /* slightly deeper paper */
+    --paper-3:#E2DAC6;
+    --ink:#1B2A21;          /* deep field green ink  */
+    --ink-soft:#3C5142;     /* muted green           */
+    --ink-faint:#6B7C6E;
+    --line:#C9BFA8;         /* hairline on paper     */
+    --line-2:#D8CFB8;
+    --lime:#B7E03B;         /* crop vitality accent  */
+    --lime-deep:#7E9A1E;
+    --clay:#C0552B;         /* soil / alert accent   */
+    --clay-soft:#E8A07C;
+    --gold:#D8A736;
+    --shadow:20px 20px 0 rgba(27,42,33,.05);
+    --shadow-sm:8px 8px 0 rgba(27,42,33,.06);
+    --rail:280px;
+  }
+
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:"Hanken Grotesk",system-ui,sans-serif;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  /* film grain overlay */
+  body::before{
+    content:"";position:fixed;inset:0;z-index:9999;pointer-events:none;
+    opacity:.04;mix-blend-mode:multiply;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  ::selection{background:var(--lime);color:var(--ink)}
+
+  /* ============ APP SHELL ============ */
+  .app{display:grid;grid-template-columns:var(--rail) 1fr;min-height:100vh}
+
+  /* ---- left rail ---- */
+  .rail{position:sticky;top:0;height:100vh;border-right:2px solid var(--ink);
+    background:var(--ink);color:var(--paper);display:flex;flex-direction:column;
+    padding:28px 0;overflow-y:auto}
+  .rail .brand{padding:0 28px 26px;border-bottom:1px solid rgba(242,237,225,.14)}
+  .rail .wordmark{font-family:"Fraunces",serif;font-weight:600;font-size:46px;
+    line-height:.85;letter-spacing:-.03em}
+  .rail .wordmark .bird{font-style:italic;font-weight:300;color:var(--lime)}
+  .rail .tag{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.22em;
+    text-transform:uppercase;color:rgba(242,237,225,.45);margin-top:10px}
+
+  nav{padding:22px 16px;flex:1}
+  .nav-item{display:flex;align-items:center;gap:14px;padding:13px 14px;border-radius:3px;
+    cursor:pointer;color:rgba(242,237,225,.62);transition:.25s;position:relative;margin-bottom:3px}
+  .nav-item:hover{background:rgba(242,237,225,.06);color:var(--paper)}
+  .nav-item.active{background:rgba(183,224,59,.12);color:var(--paper)}
+  .nav-item.active::before{content:"";position:absolute;left:0;top:8px;bottom:8px;width:3px;
+    background:var(--lime);border-radius:2px}
+  .nav-item .ni{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--lime);
+    width:20px;letter-spacing:.05em}
+  .nav-item .nl{font-weight:500;font-size:14.5px;flex:1}
+  .nav-item .nd{font-family:"IBM Plex Mono",monospace;font-size:10px;
+    width:7px;height:7px;border-radius:50%;background:transparent;border:1px solid rgba(242,237,225,.3)}
+  .nav-item .nd.done{background:var(--lime);border-color:var(--lime)}
+
+  .rail .foot{padding:20px 28px 4px;border-top:1px solid rgba(242,237,225,.14);
+    font-family:"IBM Plex Mono",monospace;font-size:11px;color:rgba(242,237,225,.4);
+    line-height:1.9}
+  .rail .foot b{color:rgba(242,237,225,.7);font-weight:500}
+
+  /* ---- main column ---- */
+  .main{display:flex;flex-direction:column;min-width:0}
+
+  /* context bar */
+  .ctxbar{position:sticky;top:0;z-index:50;background:var(--paper);
+    border-bottom:2px solid var(--ink);padding:18px 40px;
+    display:flex;align-items:center;gap:28px;flex-wrap:wrap}
+  .ctxbar .live{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.16em;
+    text-transform:uppercase;color:var(--ink-soft);display:flex;align-items:center;gap:9px}
+  .ctxbar .live .dot{width:8px;height:8px;border-radius:50%;background:var(--lime);
+    box-shadow:0 0 0 3px rgba(183,224,59,.25);animation:pulse 2.4s ease-in-out infinite}
+  @keyframes pulse{50%{box-shadow:0 0 0 7px rgba(183,224,59,0)}}
+  .ctxbar .spacer{flex:1}
+  .seg{display:flex;border:1.5px solid var(--ink);border-radius:3px;overflow:hidden}
+  .seg button{font-family:"IBM Plex Mono",monospace;font-size:12px;letter-spacing:.08em;
+    text-transform:uppercase;padding:8px 16px;background:var(--paper);color:var(--ink-soft);
+    border:none;cursor:pointer;transition:.2s;border-right:1px solid var(--line)}
+  .seg button:last-child{border-right:none}
+  .seg button.on{background:var(--ink);color:var(--paper)}
+  .ctxfield{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--ink-soft)}
+  .ctxfield b{color:var(--ink);font-weight:600;font-size:14px}
+
+  /* view container */
+  .view{padding:40px 40px 80px;max-width:1240px;animation:viewin .55s cubic-bezier(.16,1,.3,1)}
+  @keyframes viewin{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+  .rise{opacity:0;transform:translateY(20px);animation:rise .7s cubic-bezier(.16,1,.3,1) forwards}
+  @keyframes rise{to{opacity:1;transform:none}}
+
+  /* view header */
+  .vhead{margin-bottom:34px}
+  .vhead .step{font-family:"IBM Plex Mono",monospace;font-size:12px;letter-spacing:.2em;
+    text-transform:uppercase;color:var(--clay);margin-bottom:10px}
+  .vhead h1{font-family:"Fraunces",serif;font-weight:500;font-size:clamp(34px,5vw,54px);
+    line-height:1;letter-spacing:-.02em}
+  .vhead p{margin-top:14px;max-width:62ch;color:var(--ink-soft);font-size:15.5px}
+
+  .section-title{display:flex;align-items:baseline;gap:16px;margin:42px 0 22px}
+  .section-title h2{font-family:"Fraunces",serif;font-weight:500;font-size:24px;letter-spacing:-.01em}
+  .section-title .idx{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--clay);letter-spacing:.1em}
+  .section-title .rule{flex:1;height:1px;background:var(--line)}
+
+  /* ============ WEEK OVERVIEW ============ */
+  .vitals{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);
+    background:var(--paper-2);margin-bottom:14px}
+  .vital{padding:22px;border-right:1px solid var(--line)}
+  .vital:last-child{border-right:none}
+  .vital .label{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.16em;
+    text-transform:uppercase;color:var(--ink-soft)}
+  .vital .num{font-family:"Fraunces",serif;font-size:clamp(30px,4vw,46px);font-weight:500;
+    line-height:1;margin-top:10px;letter-spacing:-.02em}
+  .vital .num .u{font-family:"IBM Plex Mono",monospace;font-size:14px;color:var(--ink-soft);
+    font-weight:400;margin-left:4px}
+  .vital .sub{font-size:12.5px;color:var(--ink-soft);margin-top:7px}
+  .vital.alert .num{color:var(--clay)}
+
+  /* coverage meter */
+  .cover{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+  .meter{border:1px solid var(--line);background:var(--paper-2);padding:22px}
+  .meter .mt{display:flex;justify-content:space-between;align-items:baseline;
+    font-family:"IBM Plex Mono",monospace;font-size:12px;letter-spacing:.08em;
+    text-transform:uppercase;color:var(--ink-soft)}
+  .meter .mt b{font-family:"Fraunces",serif;font-size:26px;color:var(--ink);font-weight:500;letter-spacing:0}
+  .track{height:10px;background:var(--paper);border:1px solid var(--line);margin-top:14px;position:relative;overflow:hidden}
+  .track i{position:absolute;inset:0 100% 0 0;animation:grow 1.1s cubic-bezier(.16,1,.3,1) forwards}
+  .track i.survey{background:var(--lime-deep)}
+  .track i.lab{background:var(--gold)}
+  @keyframes grow{to{right:var(--r)}}
+
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .pt{background:var(--paper-2);border:1px solid var(--line);padding:20px;position:relative;
+    transition:transform .35s cubic-bezier(.16,1,.3,1),box-shadow .35s,border-color .35s;cursor:pointer}
+  .pt:hover{transform:translate(-5px,-5px);box-shadow:var(--shadow);border-color:var(--ink)}
+  .pt .id{font-family:"Fraunces",serif;font-size:30px;font-weight:600;line-height:1}
+  .pt .stage{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--ink-soft);margin-top:4px}
+  .pt .srcs{display:flex;gap:6px;margin-top:16px}
+  .src{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.06em;text-transform:uppercase;
+    padding:3px 8px;border:1px solid var(--line);border-radius:2px;color:var(--ink-faint)}
+  .src.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+  .src.lab.on{background:var(--gold);color:var(--ink);border-color:var(--gold)}
+  .pt .row{display:flex;justify-content:space-between;font-family:"IBM Plex Mono",monospace;
+    font-size:12.5px;margin-top:14px;padding-top:10px;border-top:1px dashed var(--line)}
+  .pt .row span:last-child{color:var(--ink-soft)}
+  .status{position:absolute;top:20px;right:20px;width:11px;height:11px;border-radius:50%}
+  .status.ok{background:var(--lime);box-shadow:0 0 0 4px rgba(183,224,59,.18)}
+  .status.watch{background:var(--gold);box-shadow:0 0 0 4px rgba(216,167,54,.18)}
+  .status.flag{background:var(--clay);box-shadow:0 0 0 4px rgba(192,85,43,.18)}
+  .status.empty{background:var(--paper);border:1.5px solid var(--line);box-shadow:none}
+  .flagtxt{display:inline-block;margin-top:12px;font-family:"IBM Plex Mono",monospace;
+    font-size:10px;text-transform:uppercase;letter-spacing:.06em;padding:3px 9px;border-radius:2px}
+  .sev-High{background:var(--clay);color:var(--paper)}
+  .sev-Med{background:var(--gold);color:var(--ink)}
+  .sev-Low{background:var(--lime);color:var(--ink)}
+
+  /* ============ IMPORT VIEWS ============ */
+  .dropzone{border:2px dashed var(--line);border-radius:4px;background:var(--paper-2);
+    padding:46px 32px;text-align:center;transition:.3s;cursor:pointer;position:relative;overflow:hidden}
+  .dropzone:hover,.dropzone.hot{border-color:var(--ink);background:var(--paper-3)}
+  .dropzone .icon{width:54px;height:54px;margin:0 auto 18px;border:2px solid var(--ink);
+    border-radius:50%;display:flex;align-items:center;justify-content:center;
+    font-family:"Fraunces",serif;font-size:30px;color:var(--ink)}
+  .dropzone h3{font-family:"Fraunces",serif;font-weight:500;font-size:22px}
+  .dropzone .hint{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--ink-soft);margin-top:8px;letter-spacing:.04em}
+  .filechip{display:inline-flex;align-items:center;gap:10px;margin-top:22px;
+    background:var(--ink);color:var(--paper);font-family:"IBM Plex Mono",monospace;font-size:12px;
+    padding:9px 16px;border-radius:3px;letter-spacing:.04em}
+  .filechip .x{color:var(--lime)}
+
+  .panel{border:1px solid var(--line);background:var(--paper-2);margin-top:26px}
+  .panel .ph{display:flex;align-items:center;gap:14px;padding:16px 22px;border-bottom:1px solid var(--line);
+    font-family:"IBM Plex Mono",monospace;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft)}
+  .panel .ph .badge{margin-left:auto;background:var(--lime);color:var(--ink);padding:3px 10px;border-radius:2px;
+    font-weight:600;letter-spacing:.04em}
+  .panel .pbody{padding:8px 22px 22px}
+
+  table.data{width:100%;border-collapse:collapse;font-family:"IBM Plex Mono",monospace;font-size:13px}
+  table.data th{text-align:left;font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--ink-soft);font-weight:500;padding:14px 12px 10px;border-bottom:1px solid var(--line)}
+  table.data td{padding:11px 12px;border-bottom:1px solid var(--line-2)}
+  table.data tr:last-child td{border-bottom:none}
+  table.data tr:hover td{background:var(--paper-3)}
+  .map-arrow{color:var(--clay)}
+  .tag-auto{font-size:10px;padding:2px 7px;border-radius:2px;background:rgba(183,224,59,.3);color:var(--ink-soft);letter-spacing:.06em}
+  .tag-skip{font-size:10px;padding:2px 7px;border-radius:2px;background:var(--paper-3);color:var(--ink-faint);letter-spacing:.06em}
+
+  select,input.cell{font-family:"IBM Plex Mono",monospace;font-size:12.5px;padding:6px 10px;
+    border:1px solid var(--line);background:var(--paper);color:var(--ink);border-radius:2px;cursor:pointer}
+  select:focus,input.cell:focus{outline:none;border-color:var(--ink)}
+
+  .photos{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
+  .photo{width:74px;height:74px;border:1px solid var(--line);border-radius:3px;
+    display:flex;align-items:center;justify-content:center;font-family:"IBM Plex Mono",monospace;
+    font-size:10px;color:var(--paper);position:relative;overflow:hidden}
+  .photo span{position:relative;z-index:2;background:rgba(27,42,33,.55);padding:2px 5px;border-radius:2px}
+
+  .btn{font-family:"IBM Plex Mono",monospace;font-size:13px;letter-spacing:.08em;text-transform:uppercase;
+    padding:14px 28px;border:2px solid var(--ink);background:var(--ink);color:var(--paper);
+    border-radius:3px;cursor:pointer;transition:.25s;display:inline-flex;align-items:center;gap:12px}
+  .btn:hover{background:var(--lime);border-color:var(--lime);color:var(--ink)}
+  .btn.ghost{background:transparent;color:var(--ink)}
+  .btn.ghost:hover{background:var(--ink);color:var(--paper)}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+  .actions{margin-top:26px;display:flex;gap:14px;align-items:center}
+  .actions .note{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--ink-soft)}
+
+  /* ============ OBSERVATIONS ============ */
+  .obswrap{display:grid;grid-template-columns:150px 1fr;gap:0;border:1px solid var(--line);background:var(--paper-2)}
+  .ptrail{border-right:1px solid var(--line);padding:14px}
+  .ptrail button{display:flex;justify-content:space-between;align-items:center;width:100%;
+    font-family:"IBM Plex Mono",monospace;font-size:14px;padding:11px 14px;background:transparent;
+    border:none;border-radius:3px;cursor:pointer;color:var(--ink-soft);margin-bottom:3px;transition:.2s}
+  .ptrail button:hover{background:var(--paper-3);color:var(--ink)}
+  .ptrail button.on{background:var(--ink);color:var(--paper)}
+  .ptrail button .pd{width:7px;height:7px;border-radius:50%}
+  .pd.ok{background:var(--lime)}.pd.watch{background:var(--gold)}.pd.flag{background:var(--clay)}.pd.empty{background:var(--line)}
+  .obsbody{padding:26px 30px}
+  .subtabs{display:flex;gap:6px;margin-bottom:24px;border-bottom:1px solid var(--line)}
+  .subtabs button{font-family:"IBM Plex Mono",monospace;font-size:12px;letter-spacing:.08em;text-transform:uppercase;
+    padding:11px 18px;background:transparent;border:none;border-bottom:2px solid transparent;color:var(--ink-soft);cursor:pointer;margin-bottom:-1px}
+  .subtabs button.on{color:var(--ink);border-bottom-color:var(--clay)}
+
+  .fgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:18px 32px}
+  .field{display:flex;flex-direction:column;gap:7px}
+  .field label{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft)}
+  .field .ctrl{font-family:"IBM Plex Mono",monospace;font-size:14px;border:1px solid var(--line);
+    background:var(--paper);padding:9px 12px;border-radius:2px;color:var(--ink)}
+  .field .ctrl:focus{outline:none;border-color:var(--ink)}
+  .grp{margin-bottom:30px}
+  .grp h4{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--clay);margin-bottom:16px;padding-bottom:8px;border-bottom:1px dashed var(--line)}
+
+  .tdrtable{width:100%;border-collapse:collapse;font-family:"IBM Plex Mono",monospace;font-size:13px}
+  .tdrtable th{text-align:right;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);
+    font-weight:500;padding:8px 10px}
+  .tdrtable th:first-child{text-align:left}
+  .tdrtable td{padding:6px 10px;text-align:right;border-top:1px solid var(--line-2)}
+  .tdrtable td:first-child{text-align:left;color:var(--ink-soft)}
+  .tdrtable input{width:78px;text-align:right;font-family:"IBM Plex Mono",monospace;font-size:13px;
+    border:1px solid var(--line);background:var(--paper);padding:5px 8px;border-radius:2px;color:var(--ink)}
+  .tdrtable .u{color:var(--ink-faint);font-size:11px;margin-left:3px}
+
+  .dz-row{display:grid;grid-template-columns:1.4fr .8fr 1fr;gap:14px;align-items:center;
+    padding:10px 0;border-bottom:1px solid var(--line-2);font-family:"IBM Plex Mono",monospace;font-size:13px}
+  .dz-row:last-child{border-bottom:none}
+  .toggle{display:inline-flex;border:1px solid var(--line);border-radius:3px;overflow:hidden}
+  .toggle button{font-family:"IBM Plex Mono",monospace;font-size:11px;padding:5px 12px;background:var(--paper);
+    border:none;cursor:pointer;color:var(--ink-soft);border-right:1px solid var(--line)}
+  .toggle button:last-child{border-right:none}
+  .toggle button.on{background:var(--lime);color:var(--ink)}
+  .toggle.pres button.on{background:var(--clay);color:var(--paper)}
+
+  /* lab nutrient grid */
+  .nutgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+  .nutcell{border:1px solid var(--line);background:var(--paper);padding:12px 14px}
+  .nutcell .el{font-family:"Fraunces",serif;font-size:20px;font-weight:600;display:flex;justify-content:space-between;align-items:baseline}
+  .nutcell .el .rate{font-family:"IBM Plex Mono",monospace;font-size:10px;padding:2px 7px;border-radius:2px}
+  .r-S{background:var(--lime);color:var(--ink)}.r-L{background:var(--gold);color:var(--ink)}
+  .r-D{background:var(--clay);color:var(--paper)}.r-H{background:var(--ink-soft);color:var(--paper)}.r-VH{background:var(--ink);color:var(--paper)}
+  .nutcell .lv{font-family:"IBM Plex Mono",monospace;font-size:13px;margin-top:6px;color:var(--ink-soft)}
+  .nutcell .lv .u{color:var(--ink-faint);font-size:11px}
+
+  .ratios{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+  .ratio{border:1px solid var(--line);background:var(--paper);padding:12px 16px;
+    display:flex;justify-content:space-between;align-items:center;font-family:"IBM Plex Mono",monospace}
+  .ratio .rn{font-weight:600;font-size:14px}.ratio .rn small{color:var(--ink-faint);font-weight:400;font-size:11px;display:block;letter-spacing:.02em}
+  .ratio .rv{text-align:right;font-size:13px}
+  .ratio .rv .e{color:var(--ink-faint)}
+  .ratio .rv .off{color:var(--clay)}
+
+  /* ============ EXPORT ============ */
+  .expgrid{display:grid;grid-template-columns:1fr 1.1fr;gap:26px;align-items:start}
+  .manifest{border:2px solid var(--ink);background:var(--ink);color:var(--paper);padding:30px}
+  .manifest h3{font-family:"Fraunces",serif;font-size:24px;font-weight:500;margin-bottom:4px}
+  .manifest .zip{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--lime);letter-spacing:.04em;margin-bottom:22px}
+  .tree{font-family:"IBM Plex Mono",monospace;font-size:13px;line-height:2.05}
+  .tree .f{color:rgba(242,237,225,.55)}
+  .tree .n{color:var(--paper)}
+  .tree .sz{color:var(--lime);float:right}
+  .tree .dir{color:var(--gold)}
+
+  .runner{border:1px solid var(--line);background:var(--paper-2);padding:30px}
+  .runner h3{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:22px}
+  .stage{display:flex;align-items:center;gap:16px;padding:14px 0;border-bottom:1px solid var(--line-2)}
+  .stage:last-child{border-bottom:none}
+  .stage .dot{width:24px;height:24px;border-radius:50%;border:2px solid var(--line);flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--ink-faint);transition:.3s}
+  .stage.run .dot{border-color:var(--gold);color:var(--gold);animation:spin 1s linear infinite}
+  .stage.done .dot{background:var(--lime);border-color:var(--lime);color:var(--ink)}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .stage .st{font-family:"IBM Plex Mono",monospace;font-size:13.5px;color:var(--ink-soft);transition:.3s}
+  .stage.done .st,.stage.run .st{color:var(--ink)}
+  .stage .stsub{font-size:11px;color:var(--ink-faint);display:block;margin-top:2px;letter-spacing:.02em}
+
+  .toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(120px);
+    background:var(--ink);color:var(--paper);font-family:"IBM Plex Mono",monospace;font-size:13px;
+    padding:14px 26px;border-radius:3px;letter-spacing:.04em;z-index:200;transition:transform .4s cubic-bezier(.16,1,.3,1);
+    display:flex;align-items:center;gap:12px;box-shadow:0 12px 40px rgba(27,42,33,.25)}
+  .toast.show{transform:translateX(-50%) translateY(0)}
+  .toast .tk{color:var(--lime)}
+
+  @media(max-width:1080px){
+    .app{grid-template-columns:1fr}
+    .rail{position:static;height:auto;flex-direction:row;align-items:center;border-right:none;border-bottom:2px solid var(--ink);padding:16px 20px;overflow-x:auto}
+    .rail .brand{border-bottom:none;border-right:1px solid rgba(242,237,225,.14);padding:0 22px 0 0}
+    .rail .wordmark{font-size:30px}.rail .tag{display:none}
+    nav{display:flex;padding:0 0 0 16px;gap:4px}.nav-item{margin-bottom:0;white-space:nowrap}
+    .nav-item .nl{display:none}.rail .foot{display:none}
+    .vitals,.nutgrid{grid-template-columns:repeat(2,1fr)}
+    .grid3,.cover,.ratios,.expgrid{grid-template-columns:1fr}
+    .fgrid{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ============ LEFT RAIL ============ -->
+  <aside class="rail">
+    <div class="brand">
+      <div class="wordmark">Mag<span class="bird">pie</span></div>
+      <div class="tag">Weekly Package Builder</div>
+    </div>
+    <nav id="nav"></nav>
+    <div class="foot">
+      DB · <b>packages.sqlite</b><br>
+      Packages · <b>14 weeks</b><br>
+      Build · <b>v0.1.0</b>
+    </div>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <div class="main">
+    <div class="ctxbar">
+      <div class="live"><span class="dot"></span>Working set</div>
+      <div class="seg" id="cropseg">
+        <button data-crop="canola" class="on">Canola</button>
+        <button data-crop="corn">Corn</button>
+      </div>
+      <div class="ctxfield">Week&nbsp; <b id="ctxweek">2026-W22</b></div>
+      <div class="spacer"></div>
+      <div class="ctxfield">Issued&nbsp; <b>2026-05-28</b> &nbsp;·&nbsp; Olds, AB</div>
+    </div>
+    <div class="view" id="view"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><span class="tk">✓</span><span id="toastmsg"></span></div>
+
+<script>
+/* ============================================================
+   Magpie web concept — shared state + view router
+   Data mirrors the real obs_canola / obs_corn shape.
+============================================================ */
+
+const NAV = [
+  {id:"overview", n:"01", l:"Week overview"},
+  {id:"survey",   n:"02", l:"Survey123 import"},
+  {id:"lab",      n:"03", l:"Lab import"},
+  {id:"obs",      n:"04", l:"Observations"},
+  {id:"export",   n:"05", l:"Export"},
+];
+
+// ---- monitoring-point dataset (Canola, 2026-W22) ----
+function mkPoint(id, o){
+  return Object.assign({
+    id, stage:"65 - Full flowering", status:"ok",
+    survey:true, lab:true, flag:null,
+    tdr:{temp:[18.5,18.1,17.6], ec:[0.44,0.41,0.39], moist:[28,26,25]},
+    diseases:{}, insect:{dmg:"", sev:"", id:""},
+    petal:{no:"", pct:""},
+    nutrients:{N:["4.2","S"],NO3N:["310","S"],P:["0.41","S"],K:["2.80","S"],Ca:["1.55","S"],
+      Mg:["0.31","S"],S:["0.65","L"],Zn:["35","S"],Mn:["48","S"],Fe:["120","S"],
+      Cu:["6","S"],B:["22","D"],Mo:["0.8","S"],Al:["45","S"],Na:["0.02","S"],Cl:["0.9","S"]},
+    ratios:{"N/S":["6.5","6.5"],"N/K":["1.5","1.6"],"P/S":["0.63","0.65"],"P/Zn":["117","110"],
+      "K/Mg":["9.0","8.5"],"K/Mn":["583","600"],"Ca/B":["705","700"],"Fe/Mn":["2.5","2.4"]},
+    images:0
+  }, o);
+}
+const CANOLA = [
+  mkPoint("M1",{status:"flag", flag:{t:"Blackleg",s:"High"}, diseases:{Blackleg:["yes","High"],Aster_Yellows:["yes","Low"]}, images:4}),
+  mkPoint("M2",{status:"ok", images:2}),
+  mkPoint("M3",{stage:"63 - Flowering, ~30% open", status:"ok", tdr:{temp:[17.4,17.2,17.0],ec:[0.40,0.39,0.38],moist:[24,23,23]}, images:1}),
+  mkPoint("M4",{status:"flag", flag:{t:"Sclerotinia",s:"Med"}, diseases:{Sclerotinia_Stem_Rot:["yes","Med"]}, nutrients_override:true, images:3,
+    nutrients:{N:["3.8","L"],NO3N:["210","L"],P:["0.38","S"],K:["2.40","L"],Ca:["1.40","S"],Mg:["0.28","S"],S:["0.58","L"],Zn:["31","S"],Mn:["44","S"],Fe:["110","S"],Cu:["5","S"],B:["18","D"],Mo:["0.7","S"],Al:["50","S"],Na:["0.02","S"],Cl:["0.8","S"]}}),
+  mkPoint("M5",{stage:"61 - Beginning of flowering", status:"watch", flag:{t:"Low moisture",s:"Low"}, lab:false, tdr:{temp:[16.9,16.7,16.4],ec:[0.36,0.35,0.34],moist:[22,21,20]}, images:1}),
+  mkPoint("M6",{status:"ok", images:2}),
+  mkPoint("M7",{stage:"63 - Flowering, ~30% open", status:"ok", images:0}),
+  mkPoint("M8",{status:"flag", flag:{t:"Aster yellows",s:"Low"}, diseases:{Aster_Yellows:["yes","Low"]}, images:2}),
+  mkPoint("M9",{stage:"63 - Flowering, ~30% open", status:"ok", survey:true, lab:false, images:1}),
+];
+// a couple of empty corn points to show coverage gaps
+const CORN = [
+  mkPoint("L1",{stage:"VT - Tasseling", status:"ok", images:2}),
+  mkPoint("L2",{stage:"VT - Tasseling", status:"ok", lab:false, images:1}),
+  mkPoint("L3",{stage:"V12", status:"watch", flag:{t:"Common rust",s:"Low"}, images:1}),
+  mkPoint("L4",{stage:"", status:"empty", survey:false, lab:false, images:0}),
+  mkPoint("L5",{stage:"V12", status:"ok", images:0}),
+  mkPoint("L6",{stage:"", status:"empty", survey:false, lab:false, images:0}),
+  mkPoint("L7",{stage:"VT - Tasseling", status:"ok", lab:false, images:1}),
+  mkPoint("L8",{stage:"V12", status:"ok", images:0}),
+  mkPoint("L9",{stage:"", status:"empty", survey:false, lab:false, images:0}),
+];
+
+const STATE = {
+  crop:"canola", week:"2026-W22", view:"overview",
+  data:{canola:CANOLA, corn:CORN},
+  surveyCommitted:false, labCommitted:false,
+  activePt:"M1", obsTab:"field"
+};
+const pts = () => STATE.data[STATE.crop];
+const prefix = () => STATE.crop==="canola" ? "M":"L";
+
+const DISEASES = ["Aster_Yellows","Clubroot","Blackleg","Seedling_Blight","Staghead_White_Rust","Alternaria_Blackspot","Sclerotinia_Stem_Rot","Other"];
+const NUT_ORDER = ["N","NO3N","P","K","Ca","Mg","S","Zn","Mn","Fe","Cu","B","Mo","Al","Na","Cl"];
+const NUT_UNIT = {N:"%",NO3N:"ppm",P:"%",K:"%",Ca:"%",Mg:"%",S:"%",Zn:"ppm",Mn:"ppm",Fe:"ppm",Cu:"ppm",B:"ppm",Mo:"ppm",Al:"ppm",Na:"%",Cl:"%"};
+const RATIO_NAMES = {"N/S":"Protein synthesis","N/K":"Growth vs structure","P/S":"Energy metabolism","P/Zn":"Zinc lockout","K/Mg":"Uptake competition","K/Mn":"Metabolic regulation","Ca/B":"Cell wall integrity","Fe/Mn":"Enzyme binding"};
+
+// ---------- helpers ----------
+const $ = s => document.querySelector(s);
+function toast(msg){const t=$("#toast");$("#toastmsg").textContent=msg;t.classList.add("show");clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove("show"),2600);}
+
+// ---------- nav ----------
+function renderNav(){
+  $("#nav").innerHTML = NAV.map(it=>{
+    const done = (it.id==="survey"&&STATE.surveyCommitted) || (it.id==="lab"&&STATE.labCommitted);
+    return `<div class="nav-item ${STATE.view===it.id?"active":""}" data-view="${it.id}">
+      <span class="ni">${it.n}</span><span class="nl">${it.l}</span>
+      <span class="nd ${done?"done":""}"></span></div>`;
+  }).join("");
+  $("#nav").querySelectorAll(".nav-item").forEach(el=>el.onclick=()=>{STATE.view=el.dataset.view;render();});
+}
+
+// ============================================================
+//  VIEW 01 — WEEK OVERVIEW
+// ============================================================
+function viewOverview(){
+  const P = pts();
+  const surveyN = P.filter(p=>p.survey).length, labN = P.filter(p=>p.lab).length;
+  const flags = P.filter(p=>p.status==="flag");
+  const temps = P.filter(p=>p.survey).map(p=>p.tdr.temp.reduce((a,b)=>a+b,0)/3);
+  const meanT = temps.length? (temps.reduce((a,b)=>a+b,0)/temps.length).toFixed(1):"—";
+  const ecs = P.filter(p=>p.survey).flatMap(p=>p.tdr.ec);
+  const meanEC = ecs.length? (ecs.reduce((a,b)=>a+b,0)/ecs.length).toFixed(2):"—";
+
+  const cards = P.map((p,i)=>{
+    const fl = p.flag ? `<span class="flagtxt sev-${p.flag.s}">${p.flag.t} · ${p.flag.s}</span>` : "";
+    const mt = (p.tdr.temp.reduce((a,b)=>a+b,0)/3).toFixed(1);
+    const mm = Math.round(p.tdr.moist.reduce((a,b)=>a+b,0)/3);
+    return `<article class="pt rise" style="animation-delay:${.04*i}s" data-pt="${p.id}">
+      <span class="status ${p.status}"></span>
+      <div class="id">${p.id}</div>
+      <div class="stage">${p.stage || "— no data —"}</div>
+      <div class="srcs">
+        <span class="src ${p.survey?"on":""}">Survey</span>
+        <span class="src lab ${p.lab?"on":""}">Lab</span>
+        ${p.images?`<span class="src">▣ ${p.images}</span>`:""}
+      </div>
+      ${p.survey?`<div class="row"><span>Soil temp</span><span>${mt} °C</span></div>
+      <div class="row"><span>Moisture</span><span>${mm} %</span></div>`:`<div class="row"><span>awaiting import</span><span></span></div>`}
+      ${fl}
+    </article>`;
+  }).join("");
+
+  return `
+  <div class="vhead rise">
+    <div class="step">Step 01 · Pipeline start</div>
+    <h1>Week overview</h1>
+    <p>The working set for <b>${STATE.crop[0].toUpperCase()+STATE.crop.slice(1)} · ${STATE.week}</b>. Each of the nine fixed monitoring points shows which upstream feeds have landed and the headline field reading. Points stay empty until a Survey123 export or lab report is committed.</p>
+  </div>
+
+  <div class="vitals rise" style="animation-delay:.06s">
+    <div class="vital"><div class="label">Mean soil temp</div><div class="num">${meanT}<span class="u">°C</span></div><div class="sub">TDR avg across committed points</div></div>
+    <div class="vital"><div class="label">Mean soil EC</div><div class="num">${meanEC}<span class="u">dS/m</span></div><div class="sub">Within expected band</div></div>
+    <div class="vital"><div class="label">Growth stage</div><div class="num" style="font-size:clamp(26px,3.5vw,40px)">BBCH 65</div><div class="sub">Modal stage · full flowering</div></div>
+    <div class="vital ${flags.length?"alert":""}"><div class="label">Disease flags</div><div class="num">${flags.length}<span class="u">/9 pts</span></div><div class="sub">${flags.map(f=>f.flag.t).join(" · ")||"none"}</div></div>
+  </div>
+
+  <div class="cover rise" style="animation-delay:.12s">
+    <div class="meter"><div class="mt"><span>Field coverage · Survey123</span><b>${surveyN}/9</b></div>
+      <div class="track"><i class="survey" style="--r:${100-surveyN/9*100}%"></i></div></div>
+    <div class="meter"><div class="mt"><span>Lab coverage · PT2R</span><b>${labN}/9</b></div>
+      <div class="track"><i class="lab" style="--r:${100-labN/9*100}%"></i></div></div>
+  </div>
+
+  <div class="section-title rise" style="animation-delay:.16s"><span class="idx">01·A</span><h2>Monitoring points</h2><span class="rule"></span></div>
+  <div class="grid3">${cards}</div>`;
+}
+
+// ============================================================
+//  VIEW 02 — SURVEY123 IMPORT
+// ============================================================
+const SURVEY_MAP = [
+  ["ObjectID","—","skip"],
+  ["point_id","ID","auto"],
+  ["survey_date","Date_Time","auto"],
+  ["growth_stage","Canola_Crop_Growth_Stage","auto"],
+  ["tdr1_temp","TDR_1_SOIL_TEMPERATURE (°C)","auto"],
+  ["tdr1_ec","TDR_1_SOIL_EC (dS/m)","auto"],
+  ["tdr1_moist","TDR_1_SOIL_MOISTURE (%)","auto"],
+  ["disease_blackleg","Disease_Blackleg","auto"],
+  ["blackleg_sev","Disease_Blackleg_Severity","auto"],
+  ["insect_dmg","Insect_Damage","auto"],
+  ["insect_sev","Insect_Damage_Severity","auto"],
+  ["gps_lat","—","skip"],
+  ["gps_lon","—","skip"],
+];
+function viewSurvey(){
+  const done = STATE.surveyCommitted;
+  return `
+  <div class="vhead rise">
+    <div class="step">Step 02 · Field feed</div>
+    <h1>Survey123 import</h1>
+    <p>Drop the week's Survey123 export. Magpie matches its columns to the template by exact-then-normalized name, ignores the surveyor's GPS (the fixed point lat/long wins), and auto-copies any photos found in a sibling <b>media/</b> folder.</p>
+  </div>
+
+  <div class="dropzone rise" id="surveyDrop" style="animation-delay:.05s">
+    <div class="icon">↧</div>
+    <h3>${done?"survey123_export_W22.xlsx":"Drop Survey123 export · .xlsx / .csv"}</h3>
+    <div class="hint">${done?"loaded · 9 rows · 16 photos in ./media":"or click to browse — last folder remembered"}</div>
+    ${done?`<div class="filechip"><span class="x">▣</span> survey123_export_W22.xlsx · 9 rows</div>`:""}
+  </div>
+
+  ${done?`
+  <div class="panel rise">
+    <div class="ph">Column mapping <span class="badge">11 mapped · 2 skipped</span></div>
+    <div class="pbody"><table class="data">
+      <thead><tr><th>Source column</th><th></th><th>Template field</th><th>Status</th></tr></thead>
+      <tbody>${SURVEY_MAP.map(([s,t,k])=>`<tr>
+        <td>${s}</td><td class="map-arrow">→</td>
+        <td>${t==="—"?'<span style="color:var(--ink-faint)">(unmapped — not written)</span>':t}</td>
+        <td>${k==="auto"?'<span class="tag-auto">auto</span>':'<span class="tag-skip">skip</span>'}</td>
+      </tr>`).join("")}</tbody>
+    </table></div>
+  </div>
+
+  <div class="panel rise">
+    <div class="ph">Photos · auto-copied from ./media <span class="badge">16 files</span></div>
+    <div class="pbody"><div class="photos">
+      ${["M1·a","M1·b","M1·c","M3","M5","M8","M2","M6"].map((n,i)=>`<div class="photo" style="background:linear-gradient(135deg,hsl(${90+i*14} 28% ${30+i*3}%),hsl(${70+i*10} 24% 22%))"><span>${n}</span></div>`).join("")}
+      <div class="photo" style="border-style:dashed;color:var(--ink-faint);background:var(--paper-2)"><span style="background:none;color:var(--ink-faint)">+8</span></div>
+    </div></div>
+  </div>
+
+  <div class="actions rise">
+    <span class="btn" style="background:var(--lime-deep);border-color:var(--lime-deep)">✓ Committed to obs_canola</span>
+    <span class="note">9 points updated · re-importing re-opens the mapping</span>
+  </div>
+  `:`
+  <div class="actions rise" style="animation-delay:.1s">
+    <button class="btn" id="surveyCommit">Load &amp; map sample →</button>
+    <span class="note">demo loads a synthetic 9-row export</span>
+  </div>`}`;
+}
+
+// ============================================================
+//  VIEW 03 — LAB IMPORT
+// ============================================================
+const LAB_ROWS = [
+  ["PT2R-4471","M1"],["PT2R-4472","M2"],["PT2R-4473","M3"],["PT2R-4474","M4"],
+  ["PT2R-4475","Skip"],["PT2R-4476","M6"],["PT2R-4477","M7"],["PT2R-4478","M8"],["PT2R-4479","M9"]
+];
+function viewLab(){
+  const done = STATE.labCommitted;
+  const opts = ["Skip", ...pts().map(p=>p.id)];
+  return `
+  <div class="vhead rise">
+    <div class="step">Step 03 · Lab feed</div>
+    <h1>Lab import</h1>
+    <p>Drop the PT2R lab workbook (legacy <b>.xls</b>, read via python-calamine). The lab's <b>SampleID</b> doesn't map to a monitoring point automatically — so each row gets a <b>Target location</b> dropdown you assign by hand. Nutrient levels, rate codes, and ratios land in the matching <b>obs_${STATE.crop}</b> row without clobbering Survey123 fields.</p>
+  </div>
+
+  <div class="dropzone rise" id="labDrop" style="animation-delay:.05s">
+    <div class="icon">↧</div>
+    <h3>${done?"PT2R_2026-W22.xls":"Drop PT2R lab report · .xls / .csv"}</h3>
+    <div class="hint">${done?"loaded · 9 sample rows · 48 nutrient columns":"or click to browse"}</div>
+    ${done?`<div class="filechip"><span class="x">▣</span> PT2R_2026-W22.xls · 9 samples</div>`:""}
+  </div>
+
+  ${done?`
+  <div class="panel rise">
+    <div class="ph">Row assignment <span class="badge">8 assigned · 1 skip</span></div>
+    <div class="pbody"><table class="data">
+      <thead><tr><th>Sample ID</th><th>Report No.</th><th>N (%)</th><th>P (%)</th><th>S (%)</th><th>B (ppm)</th><th>Target location</th></tr></thead>
+      <tbody>${LAB_ROWS.map(([sid,tgt],i)=>{
+        const r = ["4.2","0.41","0.65","22"];
+        return `<tr><td>${sid}</td><td>RN-${8810+i}</td>
+          <td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td><td>${r[3]}</td>
+          <td><select>${opts.map(o=>`<option ${o===tgt?"selected":""}>${o}</option>`).join("")}</select></td></tr>`;
+      }).join("")}</tbody>
+    </table></div>
+  </div>
+  <div class="actions rise">
+    <span class="btn" style="background:var(--lime-deep);border-color:var(--lime-deep)">✓ Committed · 8 rows merged</span>
+    <span class="note">merge policy: only mapped, non-blank cells overwrite</span>
+  </div>
+  `:`
+  <div class="actions rise" style="animation-delay:.1s">
+    <button class="btn" id="labCommit">Load sample report →</button>
+    <span class="note">demo loads a synthetic PT2R workbook</span>
+  </div>`}`;
+}
+
+// ============================================================
+//  VIEW 04 — OBSERVATIONS
+// ============================================================
+function viewObs(){
+  const P = pts();
+  const rail = P.map(p=>`<button class="${p.id===STATE.activePt?"on":""}" data-pt="${p.id}">
+    <span>${p.id}</span><span class="pd ${p.status}"></span></button>`).join("");
+  const body = STATE.obsTab==="field" ? obsField() : obsLab();
+  return `
+  <div class="vhead rise">
+    <div class="step">Step 04 · Review &amp; edit</div>
+    <h1>Observations</h1>
+    <p>Everything merged from both feeds, hand-editable before export. Split into <b>Field observations</b> (Survey123-driven) and the <b>Lab report</b> (PT2R-driven). Pick a point on the left.</p>
+  </div>
+  <div class="obswrap rise" style="animation-delay:.05s">
+    <div class="ptrail">${rail}</div>
+    <div class="obsbody">
+      <div class="subtabs">
+        <button class="${STATE.obsTab==="field"?"on":""}" data-tab="field">Field observations</button>
+        <button class="${STATE.obsTab==="lab"?"on":""}" data-tab="lab">Lab report</button>
+      </div>
+      ${body}
+    </div>
+  </div>`;
+}
+function obsField(){
+  const p = pts().find(x=>x.id===STATE.activePt);
+  const tdrRow = (lbl,arr,u)=>`<tr><td>${lbl}<span class="u">${u}</span></td>${arr.map(v=>`<td><input value="${v}"></td>`).join("")}</tr>`;
+  const dz = DISEASES.map(d=>{
+    const cur = p.diseases[d] || ["",""];
+    return `<div class="dz-row">
+      <span>${d.replace(/_/g," ")}</span>
+      <span class="toggle pres"><button class="${cur[0]===""?"on":""}">—</button><button class="${cur[0]==="yes"?"on":""}">yes</button></span>
+      <span class="toggle">${["—","Low","Med","High"].map(s=>`<button class="${(cur[1]||"")===(s==="—"?"":s)?"on":""}">${s}</button>`).join("")}</span>
+    </div>`;
+  }).join("");
+  return `
+  <div class="grp">
+    <h4>Growth & timing</h4>
+    <div class="fgrid">
+      <div class="field"><label>Date_Time</label><input class="ctrl" value="2026-05-27 09:42"></div>
+      <div class="field"><label>${STATE.crop[0].toUpperCase()+STATE.crop.slice(1)}_Crop_Growth_Stage</label>
+        <select class="ctrl"><option>${p.stage}</option><option>61 - Beginning of flowering</option><option>63 - Flowering, ~30% open</option><option>65 - Full flowering</option><option>67 - Flowering declining</option></select></div>
+    </div>
+  </div>
+  <div class="grp">
+    <h4>Soil sensors · TDR 1–3</h4>
+    <table class="tdrtable">
+      <thead><tr><th>Reading</th><th>TDR 1</th><th>TDR 2</th><th>TDR 3</th></tr></thead>
+      <tbody>
+        ${tdrRow("Temperature",p.tdr.temp," °C")}
+        ${tdrRow("Conductivity",p.tdr.ec," dS/m")}
+        ${tdrRow("Moisture",p.tdr.moist," %")}
+      </tbody>
+    </table>
+  </div>
+  <div class="grp">
+    <h4>Disease · presence &amp; severity</h4>
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--ink-faint);display:grid;grid-template-columns:1.4fr .8fr 1fr;gap:14px;padding-bottom:8px;letter-spacing:.08em;text-transform:uppercase">
+      <span>Disease</span><span>Present</span><span>Severity · L 1–10% / M 10–30% / H &gt;30%</span></div>
+    ${dz}
+  </div>
+  <div class="grp">
+    <h4>Insects &amp; petal test</h4>
+    <div class="fgrid">
+      <div class="field"><label>Insect_Damage</label><input class="ctrl" value="${p.insect.dmg||"—"}"></div>
+      <div class="field"><label>Insect_Damage_Severity</label>
+        <select class="ctrl"><option>—</option><option>Low</option><option>Med</option><option>High</option></select></div>
+      <div class="field"><label>Insect_Identification</label><input class="ctrl" value="${p.insect.id||"—"}"></div>
+      <div class="field"><label>Petal_Test_Total_Infected_%</label><input class="ctrl" value="${p.petal.pct||"—"}"></div>
+    </div>
+  </div>
+  <div class="grp" style="margin-bottom:8px">
+    <h4>Images · ${p.images} attached</h4>
+    <div class="photos">
+      ${Array.from({length:p.images}).map((_,i)=>`<div class="photo" style="background:linear-gradient(135deg,hsl(${90+i*16} 28% 32%),hsl(${70+i*12} 24% 22%))"><span>${p.id}·${i+1}</span></div>`).join("") || '<span style="font-family:\'IBM Plex Mono\',monospace;font-size:12px;color:var(--ink-faint)">no photos — drag to attach</span>'}
+      ${p.images?`<div class="photo" style="border-style:dashed;background:var(--paper-2)"><span style="background:none;color:var(--ink-faint)">+</span></div>`:""}
+    </div>
+  </div>`;
+}
+function obsLab(){
+  const p = pts().find(x=>x.id===STATE.activePt);
+  if(!p.lab) return `<div style="font-family:'IBM Plex Mono',monospace;font-size:14px;color:var(--ink-soft);padding:40px;text-align:center;border:1px dashed var(--line);border-radius:4px">
+    No lab report assigned to <b>${p.id}</b> yet.<br><span style="font-size:12px;color:var(--ink-faint)">Assign a PT2R sample row to this point on the Lab import tab.</span></div>`;
+  const nuts = NUT_ORDER.map(el=>{
+    const [lv,rate]=p.nutrients[el];
+    return `<div class="nutcell"><div class="el">${el}<span class="rate r-${rate}">${rate}</span></div>
+      <div class="lv">${lv}<span class="u"> ${NUT_UNIT[el]}</span></div></div>`;
+  }).join("");
+  const ratios = Object.entries(p.ratios).map(([k,[a,e]])=>{
+    const off = Math.abs(parseFloat(a)-parseFloat(e))/parseFloat(e) > .1;
+    return `<div class="ratio"><div class="rn">${k}<small>${RATIO_NAMES[k]}</small></div>
+      <div class="rv"><span class="${off?"off":""}">${a}</span> <span class="e">/ ${e}</span></div></div>`;
+  }).join("");
+  return `
+  <div class="grp">
+    <h4>Report · RN-8810 · PT2R</h4>
+    <div class="fgrid"><div class="field"><label>ReportNo</label><input class="ctrl" value="RN-8810"></div>
+    <div class="field"><label>Petal_Test_No.</label><input class="ctrl" value="${p.petal.no||"—"}"></div></div>
+  </div>
+  <div class="grp">
+    <h4>Tissue nutrients · level &amp; rate code (D / L / S / H / VH)</h4>
+    <div class="nutgrid">${nuts}</div>
+  </div>
+  <div class="grp" style="margin-bottom:8px">
+    <h4>Nutrient ratios · actual / expected</h4>
+    <div class="ratios">${ratios}</div>
+  </div>`;
+}
+
+// ============================================================
+//  VIEW 05 — EXPORT
+// ============================================================
+const EXPORT_STAGES = [
+  ["Stamp template","Static Canola Template.xlsx → Canola_2026-W22.xlsx · 9 rows"],
+  ["Build GeoPackage","9 Point features · EPSG:4326 · 84 attributes"],
+  ["Copy photos","16 files → exports/2026-W22/images/canola/"],
+  ["Bundle deliverable","zip → EarthDaily_2026-W22.zip"],
+];
+function viewExport(){
+  const crop = STATE.crop[0].toUpperCase()+STATE.crop.slice(1);
+  return `
+  <div class="vhead rise">
+    <div class="step">Step 05 · Deliverable</div>
+    <h1>Export package</h1>
+    <p>Stamp the data into a copy of the template (styling preserved), write a matching GeoPackage, copy the photos, and zip the lot into one file you can email. The <b>Images</b> column becomes a HYPERLINK formula that resolves once the client extracts the zip.</p>
+  </div>
+  <div class="expgrid">
+    <div class="runner rise" style="animation-delay:.05s">
+      <h3>Build sequence</h3>
+      <div id="stages">${EXPORT_STAGES.map((s,i)=>`<div class="stage" data-i="${i}">
+        <div class="dot">${i+1}</div><div><span class="st">${s[0]}</span><span class="stsub">${s[1]}</span></div></div>`).join("")}</div>
+      <div class="actions" style="margin-top:24px">
+        <button class="btn" id="runExport">Export ${crop} · ${STATE.week}</button>
+      </div>
+    </div>
+    <div class="manifest rise" style="animation-delay:.12s">
+      <h3>${crop} weekly package</h3>
+      <div class="zip">exports/${STATE.week}/</div>
+      <div class="tree">
+        <div><span class="dir">▸ ${STATE.week}/</span></div>
+        <div><span class="f">&nbsp;&nbsp;├─ </span><span class="n">${crop}_${STATE.week}.xlsx</span><span class="sz">38 KB</span></div>
+        <div><span class="f">&nbsp;&nbsp;├─ </span><span class="n">${crop}_${STATE.week}.gpkg</span><span class="sz">52 KB</span></div>
+        <div><span class="f">&nbsp;&nbsp;├─ </span><span class="dir">images/canola/</span></div>
+        <div><span class="f">&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;├─ </span><span class="n">M1/ </span><span class="sz">4 photos</span></div>
+        <div><span class="f">&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;├─ </span><span class="n">M2/ </span><span class="sz">2 photos</span></div>
+        <div><span class="f">&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;└─ </span><span class="n">… M3–M9</span><span class="sz">10 photos</span></div>
+        <div><span class="f">&nbsp;&nbsp;└─ </span><span class="n">EarthDaily_${STATE.week}.zip</span><span class="sz">1.1 MB</span></div>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ============================================================
+//  ROUTER + EVENT WIRING
+// ============================================================
+function render(){
+  renderNav();
+  const v = STATE.view;
+  const html = v==="overview"?viewOverview():v==="survey"?viewSurvey():v==="lab"?viewLab():v==="obs"?viewObs():viewExport();
+  $("#view").innerHTML = html;
+  wire();
+}
+function wire(){
+  // crop seg
+  $("#cropseg").querySelectorAll("button").forEach(b=>b.onclick=()=>{
+    STATE.crop=b.dataset.crop;
+    $("#cropseg").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));
+    STATE.activePt = prefix()+"1";
+    render();
+  });
+  // survey
+  const sc=$("#surveyCommit"), sd=$("#surveyDrop");
+  if(sd) sd.onclick=()=>sc&&sc.click();
+  if(sc) sc.onclick=()=>{STATE.surveyCommitted=true;toast("Survey123 committed · 9 points updated");render();};
+  // lab
+  const lc=$("#labCommit"), ld=$("#labDrop");
+  if(ld) ld.onclick=()=>lc&&lc.click();
+  if(lc) lc.onclick=()=>{STATE.labCommitted=true;toast("Lab report committed · 8 rows merged");render();};
+  // obs rail + subtabs
+  $("#view").querySelectorAll(".ptrail button").forEach(b=>b.onclick=()=>{STATE.activePt=b.dataset.pt;render();});
+  $("#view").querySelectorAll(".subtabs button").forEach(b=>b.onclick=()=>{STATE.obsTab=b.dataset.tab;render();});
+  // disease toggles (local visual)
+  $("#view").querySelectorAll(".toggle").forEach(t=>t.querySelectorAll("button").forEach(b=>b.onclick=()=>{
+    t.querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));}));
+  // overview point click → jump to obs
+  $("#view").querySelectorAll(".pt").forEach(c=>c.onclick=()=>{STATE.activePt=c.dataset.pt;STATE.view="obs";render();});
+  // export runner
+  const run=$("#runExport");
+  if(run) run.onclick=()=>runExport(run);
+}
+function runExport(btn){
+  btn.disabled=true; btn.textContent="Building…";
+  const stages=[...$("#stages").querySelectorAll(".stage")];
+  let i=0;
+  const step=()=>{
+    if(i>0) stages[i-1].classList.replace("run","done"),stages[i-1].querySelector(".dot").textContent="✓";
+    if(i>=stages.length){btn.disabled=false;btn.textContent="↻ Re-export";toast("EarthDaily_"+STATE.week+".zip ready · 1.1 MB");return;}
+    stages[i].classList.add("run"); i++; setTimeout(step, 850);
+  };
+  step();
+}
+
+render();
+</script>
+</body>
+</html>

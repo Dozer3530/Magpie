@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Magpie — Weekly Dossier · Canola · 2026-W22</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,400..700&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#F2EDE1;        /* bone paper            */
+    --paper-2:#EAE3D2;      /* slightly deeper paper */
+    --ink:#1B2A21;          /* deep field green ink  */
+    --ink-soft:#3C5142;     /* muted green           */
+    --line:#C9BFA8;         /* hairline on paper     */
+    --lime:#B7E03B;         /* crop vitality accent  */
+    --lime-deep:#7E9A1E;
+    --clay:#C0552B;         /* soil / alert accent   */
+    --clay-soft:#E8A07C;
+    --gold:#D8A736;
+    --shadow:24px 24px 0 rgba(27,42,33,.06);
+    --maxw:1180px;
+  }
+
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:"Hanken Grotesk",system-ui,sans-serif;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+    position:relative;
+  }
+
+  /* film grain overlay */
+  body::before{
+    content:"";position:fixed;inset:0;z-index:9999;pointer-events:none;
+    opacity:.04;mix-blend-mode:multiply;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 32px}
+
+  /* ---- entrance animation ---- */
+  .rise{opacity:0;transform:translateY(26px);animation:rise .9s cubic-bezier(.16,1,.3,1) forwards}
+  @keyframes rise{to{opacity:1;transform:none}}
+
+  /* ====== MASTHEAD ====== */
+  header{border-bottom:2px solid var(--ink);padding-top:34px}
+  .topbar{display:flex;justify-content:space-between;align-items:center;
+    font-family:"IBM Plex Mono",monospace;font-size:12px;letter-spacing:.18em;
+    text-transform:uppercase;color:var(--ink-soft);padding-bottom:22px}
+  .topbar .dot{display:inline-block;width:7px;height:7px;border-radius:50%;
+    background:var(--lime);margin-right:8px;box-shadow:0 0 0 3px rgba(183,224,59,.25);
+    animation:pulse 2.4s ease-in-out infinite}
+  @keyframes pulse{50%{box-shadow:0 0 0 7px rgba(183,224,59,0)}}
+
+  .masthead{display:grid;grid-template-columns:1fr auto;align-items:end;
+    gap:24px;padding:18px 0 30px}
+  .wordmark{font-family:"Fraunces",serif;font-weight:600;font-size:clamp(64px,12vw,168px);
+    line-height:.82;letter-spacing:-.03em;font-optical-sizing:auto}
+  .wordmark .bird{font-style:italic;font-weight:300;color:var(--clay)}
+  .kicker{font-family:"IBM Plex Mono",monospace;text-transform:uppercase;
+    letter-spacing:.32em;font-size:12px;color:var(--ink-soft);margin-bottom:14px}
+  .issue{text-align:right;font-family:"IBM Plex Mono",monospace;font-size:13px;
+    color:var(--ink-soft);line-height:2}
+  .issue b{color:var(--ink);font-weight:600}
+
+  /* ====== VITALS STRIP ====== */
+  .vitals{display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid var(--line)}
+  .vital{padding:26px 22px;border-right:1px solid var(--line);position:relative}
+  .vital:last-child{border-right:none}
+  .vital .label{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.16em;
+    text-transform:uppercase;color:var(--ink-soft)}
+  .vital .num{font-family:"Fraunces",serif;font-size:clamp(38px,5vw,58px);font-weight:500;
+    line-height:1;margin-top:10px;letter-spacing:-.02em}
+  .vital .num .u{font-family:"IBM Plex Mono",monospace;font-size:16px;color:var(--ink-soft);
+    font-weight:400;margin-left:4px}
+  .vital .sub{font-size:13px;color:var(--ink-soft);margin-top:8px}
+  .vital.alert .num{color:var(--clay)}
+
+  /* ====== LAYOUT ====== */
+  main{padding:54px 0 0}
+  .section-title{display:flex;align-items:baseline;gap:16px;margin-bottom:26px}
+  .section-title h2{font-family:"Fraunces",serif;font-weight:500;font-size:30px;
+    letter-spacing:-.01em}
+  .section-title .idx{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--clay);
+    letter-spacing:.1em}
+  .section-title .rule{flex:1;height:1px;background:var(--line)}
+
+  /* monitoring points grid */
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-bottom:72px}
+  .pt{background:var(--paper-2);border:1px solid var(--line);padding:22px;
+    position:relative;transition:transform .35s cubic-bezier(.16,1,.3,1),box-shadow .35s,border-color .35s;
+    cursor:default}
+  .pt:hover{transform:translate(-5px,-5px);box-shadow:var(--shadow);border-color:var(--ink)}
+  .pt .id{font-family:"Fraunces",serif;font-size:34px;font-weight:600;line-height:1}
+  .pt .stage{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--ink-soft);
+    margin-top:4px;letter-spacing:.04em}
+  .pt .row{display:flex;justify-content:space-between;font-family:"IBM Plex Mono",monospace;
+    font-size:13px;margin-top:16px;padding-top:10px;border-top:1px dashed var(--line)}
+  .pt .row span:last-child{color:var(--ink-soft)}
+  .status{position:absolute;top:22px;right:22px;width:11px;height:11px;border-radius:50%}
+  .status.ok{background:var(--lime);box-shadow:0 0 0 4px rgba(183,224,59,.18)}
+  .status.watch{background:var(--gold);box-shadow:0 0 0 4px rgba(216,167,54,.18)}
+  .status.flag{background:var(--clay);box-shadow:0 0 0 4px rgba(192,85,43,.18)}
+  .pt .flagtxt{display:inline-block;margin-top:14px;font-family:"IBM Plex Mono",monospace;
+    font-size:11px;text-transform:uppercase;letter-spacing:.08em;padding:3px 9px;border-radius:2px}
+  .sev-High{background:var(--clay);color:var(--paper)}
+  .sev-Med{background:var(--gold);color:var(--ink)}
+  .sev-Low{background:var(--lime);color:var(--ink)}
+
+  /* ====== FEATURED DETAIL ====== */
+  .feature{display:grid;grid-template-columns:1.1fr 1fr;gap:0;border:2px solid var(--ink);
+    margin-bottom:72px;background:var(--ink);color:var(--paper)}
+  .feature .left{padding:40px}
+  .feature .right{padding:40px;background:var(--paper);color:var(--ink)}
+  .feature .fid{font-family:"Fraunces",serif;font-size:72px;font-weight:600;line-height:.9;
+    letter-spacing:-.03em}
+  .feature .fid em{font-style:italic;font-weight:300;color:var(--lime)}
+  .feature .meta{font-family:"IBM Plex Mono",monospace;font-size:12px;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--lime);margin-bottom:24px}
+  .tdr{width:100%;border-collapse:collapse;margin-top:26px;font-family:"IBM Plex Mono",monospace}
+  .tdr th{text-align:left;font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+    color:rgba(242,237,225,.5);font-weight:500;padding-bottom:10px;border-bottom:1px solid rgba(242,237,225,.2)}
+  .tdr td{padding:12px 0;font-size:15px;border-bottom:1px solid rgba(242,237,225,.1)}
+  .tdr td.v{text-align:right;font-weight:500}
+  .tdr td .u{color:rgba(242,237,225,.45);font-size:12px;margin-left:3px}
+
+  .right h3{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.16em;
+    text-transform:uppercase;color:var(--ink-soft);margin-bottom:20px}
+  .nut{margin-bottom:16px}
+  .nut .top{display:flex;justify-content:space-between;align-items:baseline;
+    font-family:"IBM Plex Mono",monospace;font-size:13px}
+  .nut .top .el{font-weight:600}
+  .nut .top .val .u{color:var(--ink-soft);font-size:11px}
+  .nut .top .rate{font-size:10px;letter-spacing:.1em;padding:2px 7px;border-radius:2px;margin-left:8px}
+  .r-S{background:var(--lime);color:var(--ink)}
+  .r-L{background:var(--gold);color:var(--ink)}
+  .r-D{background:var(--clay);color:var(--paper)}
+  .bar{height:5px;background:var(--paper-2);margin-top:7px;position:relative;overflow:hidden;
+    border:1px solid var(--line)}
+  .bar i{position:absolute;left:0;top:0;bottom:0;background:var(--ink-soft);
+    width:0;animation:fill 1.2s cubic-bezier(.16,1,.3,1) forwards}
+  .bar i.opt{background:var(--lime-deep)}
+  .bar i.low{background:var(--gold)}
+  .bar i.def{background:var(--clay)}
+  @keyframes fill{to{width:var(--w)}}
+
+  /* ====== FOOTER ====== */
+  footer{border-top:2px solid var(--ink);padding:32px 0 60px;
+    display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px;
+    font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--ink-soft);
+    letter-spacing:.06em}
+  footer .mk{font-family:"Fraunces",serif;font-size:22px;color:var(--ink);font-weight:600;letter-spacing:-.01em}
+  footer .mk em{font-style:italic;font-weight:300;color:var(--clay)}
+
+  @media(max-width:860px){
+    .masthead{grid-template-columns:1fr}.issue{text-align:left}
+    .vitals{grid-template-columns:repeat(2,1fr)}
+    .vital:nth-child(2){border-right:none}
+    .grid{grid-template-columns:1fr 1fr}
+    .feature{grid-template-columns:1fr}
+  }
+  @media(max-width:560px){.grid{grid-template-columns:1fr}.vitals{grid-template-columns:1fr}
+    .vital{border-right:none}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div class="topbar rise" style="animation-delay:.05s">
+      <div><span class="dot"></span>Field package · live</div>
+      <div>Olds, AB · 51.79°N 114.10°W</div>
+    </div>
+    <div class="masthead">
+      <div class="rise" style="animation-delay:.12s">
+        <div class="kicker">Weekly Crop-Monitoring Dossier</div>
+        <div class="wordmark">Mag<span class="bird">pie</span></div>
+      </div>
+      <div class="issue rise" style="animation-delay:.22s">
+        Crop &nbsp;·&nbsp; <b>Canola</b><br>
+        Week &nbsp;·&nbsp; <b>2026-W22</b><br>
+        Points &nbsp;·&nbsp; <b>M1 – M9</b><br>
+        Issued &nbsp;·&nbsp; <b>2026-05-28</b>
+      </div>
+    </div>
+  </header>
+
+  <div class="vitals">
+    <div class="vital rise" style="animation-delay:.3s">
+      <div class="label">Mean soil temp</div>
+      <div class="num">17.9<span class="u">°C</span></div>
+      <div class="sub">TDR avg across 27 readings</div>
+    </div>
+    <div class="vital rise" style="animation-delay:.36s">
+      <div class="label">Mean soil EC</div>
+      <div class="num">0.42<span class="u">dS/m</span></div>
+      <div class="sub">Within expected band</div>
+    </div>
+    <div class="vital rise" style="animation-delay:.42s">
+      <div class="label">Growth stage</div>
+      <div class="num" style="font-size:clamp(30px,4vw,46px)">BBCH 65</div>
+      <div class="sub">Full flowering</div>
+    </div>
+    <div class="vital alert rise" style="animation-delay:.48s">
+      <div class="label">Disease flags</div>
+      <div class="num">3<span class="u">/9 pts</span></div>
+      <div class="sub">Blackleg · Sclerotinia · Aster yellows</div>
+    </div>
+  </div>
+
+  <main>
+    <!-- MONITORING POINTS -->
+    <div class="section-title rise" style="animation-delay:.5s">
+      <span class="idx">01</span>
+      <h2>Monitoring points</h2>
+      <span class="rule"></span>
+    </div>
+    <div class="grid">
+      <!-- generated cards -->
+    </div>
+
+    <!-- FEATURED -->
+    <div class="section-title rise">
+      <span class="idx">02</span>
+      <h2>Point detail — M1</h2>
+      <span class="rule"></span>
+    </div>
+    <div class="feature rise">
+      <div class="left">
+        <div class="meta">Soil sensors · TDR 1–3</div>
+        <div class="fid">M<em>1</em></div>
+        <table class="tdr">
+          <thead><tr><th>Reading</th><th style="text-align:right">TDR 1</th><th style="text-align:right">TDR 2</th><th style="text-align:right">TDR 3</th></tr></thead>
+          <tbody>
+            <tr><td>Temperature</td><td class="v">18.5<span class="u">°C</span></td><td class="v">18.1<span class="u">°C</span></td><td class="v">17.6<span class="u">°C</span></td></tr>
+            <tr><td>Conductivity</td><td class="v">0.44<span class="u">dS/m</span></td><td class="v">0.41<span class="u">dS/m</span></td><td class="v">0.39<span class="u">dS/m</span></td></tr>
+            <tr><td>Moisture</td><td class="v">28<span class="u">%</span></td><td class="v">26<span class="u">%</span></td><td class="v">25<span class="u">%</span></td></tr>
+          </tbody>
+        </table>
+        <div style="margin-top:28px">
+          <span class="flagtxt sev-High">Blackleg · High</span>
+          <span class="flagtxt sev-Low" style="margin-left:8px">Aster yellows · Low</span>
+        </div>
+      </div>
+      <div class="right">
+        <h3>Tissue nutrient panel</h3>
+        <div class="nut"><div class="top"><span class="el">N</span><span class="val">4.2<span class="u">%</span><span class="rate r-S">S</span></span></div><div class="bar"><i class="opt" style="--w:72%"></i></div></div>
+        <div class="nut"><div class="top"><span class="el">P</span><span class="val">0.41<span class="u">%</span><span class="rate r-S">S</span></span></div><div class="bar"><i class="opt" style="--w:64%"></i></div></div>
+        <div class="nut"><div class="top"><span class="el">K</span><span class="val">2.80<span class="u">%</span><span class="rate r-S">S</span></span></div><div class="bar"><i class="opt" style="--w:80%"></i></div></div>
+        <div class="nut"><div class="top"><span class="el">S</span><span class="val">0.65<span class="u">%</span><span class="rate r-L">L</span></span></div><div class="bar"><i class="low" style="--w:42%"></i></div></div>
+        <div class="nut"><div class="top"><span class="el">B</span><span class="val">22<span class="u">ppm</span><span class="rate r-D">D</span></span></div><div class="bar"><i class="def" style="--w:24%"></i></div></div>
+        <div class="nut"><div class="top"><span class="el">Zn</span><span class="val">35<span class="u">ppm</span><span class="rate r-S">S</span></span></div><div class="bar"><i class="opt" style="--w:58%"></i></div></div>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <div class="mk">Mag<em>pie</em></div>
+    <div>Generated package · EarthDaily_2026-W22.zip · xlsx + gpkg + photos</div>
+    <div>© 2026 Dozer3530</div>
+  </footer>
+</div>
+
+<script>
+  // Monitoring-point data — mirrors Magpie's obs_canola shape.
+  const points = [
+    {id:"M1", stage:"65 · Full flowering", temp:"18.5", moist:"28", status:"flag", flag:{t:"Blackleg",s:"High"}},
+    {id:"M2", stage:"65 · Full flowering", temp:"18.0", moist:"27", status:"ok"},
+    {id:"M3", stage:"63 · Flowering",      temp:"17.4", moist:"24", status:"ok"},
+    {id:"M4", stage:"65 · Full flowering", temp:"18.8", moist:"30", status:"flag", flag:{t:"Sclerotinia",s:"Med"}},
+    {id:"M5", stage:"61 · Beginning flwr", temp:"16.9", moist:"22", status:"watch", flag:{t:"Low moisture",s:"Low"}},
+    {id:"M6", stage:"65 · Full flowering", temp:"18.2", moist:"29", status:"ok"},
+    {id:"M7", stage:"63 · Flowering",      temp:"17.6", moist:"25", status:"ok"},
+    {id:"M8", stage:"65 · Full flowering", temp:"18.4", moist:"26", status:"flag", flag:{t:"Aster yellows",s:"Low"}},
+    {id:"M9", stage:"63 · Flowering",      temp:"17.1", moist:"23", status:"ok"},
+  ];
+  const grid = document.querySelector('.grid');
+  points.forEach((p,i)=>{
+    const flag = p.flag ? `<span class="flagtxt sev-${p.flag.s}">${p.flag.t} · ${p.flag.s}</span>` : "";
+    grid.insertAdjacentHTML('beforeend', `
+      <article class="pt rise" style="animation-delay:${.55 + i*.05}s">
+        <span class="status ${p.status}"></span>
+        <div class="id">${p.id}</div>
+        <div class="stage">${p.stage}</div>
+        <div class="row"><span>Soil temp</span><span>${p.temp} °C</span></div>
+        <div class="row"><span>Moisture</span><span>${p.moist} %</span></div>
+        ${flag}
+      </article>`);
+  });
+</script>
+</body>
+</html>

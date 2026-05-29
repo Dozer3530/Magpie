@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Magpie — Weekly Package Builder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,400..700&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#F2EDE1;        /* bone paper            */
+    --paper-2:#EAE3D2;      /* slightly deeper paper */
+    --paper-3:#E2DAC6;
+    --ink:#1B2A21;          /* deep field green ink  */
+    --ink-soft:#3C5142;     /* muted green           */
+    --ink-faint:#6B7C6E;
+    --line:#C9BFA8;         /* hairline on paper     */
+    --line-2:#D8CFB8;
+    --lime:#B7E03B;         /* crop vitality accent  */
+    --lime-deep:#7E9A1E;
+    --clay:#C0552B;         /* soil / alert accent   */
+    --clay-soft:#E8A07C;
+    --gold:#D8A736;
+    --shadow:20px 20px 0 rgba(27,42,33,.05);
+    --shadow-sm:8px 8px 0 rgba(27,42,33,.06);
+    --rail:280px;
+  }
+
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:"Hanken Grotesk",system-ui,sans-serif;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  /* film grain overlay */
+  body::before{
+    content:"";position:fixed;inset:0;z-index:9999;pointer-events:none;
+    opacity:.04;mix-blend-mode:multiply;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  ::selection{background:var(--lime);color:var(--ink)}
+
+  /* ============ APP SHELL ============ */
+  .app{display:grid;grid-template-columns:var(--rail) 1fr;min-height:100vh}
+
+  /* ---- left rail ---- */
+  .rail{position:sticky;top:0;height:100vh;border-right:2px solid var(--ink);
+    background:var(--ink);color:var(--paper);display:flex;flex-direction:column;
+    padding:28px 0;overflow-y:auto}
+  .rail .brand{padding:0 28px 26px;border-bottom:1px solid rgba(242,237,225,.14)}
+  .rail .wordmark{font-family:"Fraunces",serif;font-weight:600;font-size:46px;
+    line-height:.85;letter-spacing:-.03em}
+  .rail .wordmark .bird{font-style:italic;font-weight:300;color:var(--lime)}
+  .rail .tag{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.22em;
+    text-transform:uppercase;color:rgba(242,237,225,.45);margin-top:10px}
+
+  nav{padding:22px 16px;flex:1}
+  .nav-item{display:flex;align-items:center;gap:14px;padding:13px 14px;border-radius:3px;
+    cursor:pointer;color:rgba(242,237,225,.62);transition:.25s;position:relative;margin-bottom:3px}
+  .nav-item:hover{background:rgba(242,237,225,.06);color:var(--paper)}
+  .nav-item.active{background:rgba(183,224,59,.12);color:var(--paper)}
+  .nav-item.active::before{content:"";position:absolute;left:0;top:8px;bottom:8px;width:3px;
+    background:var(--lime);border-radius:2px}
+  .nav-item .ni{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--lime);
+    width:20px;letter-spacing:.05em}
+  .nav-item .nl{font-weight:500;font-size:14.5px;flex:1}
+  .nav-item .nd{font-family:"IBM Plex Mono",monospace;font-size:10px;
+    width:7px;height:7px;border-radius:50%;background:transparent;border:1px solid rgba(242,237,225,.3)}
+  .nav-item .nd.done{background:var(--lime);border-color:var(--lime)}
+
+  .rail .foot{padding:20px 28px 4px;border-top:1px solid rgba(242,237,225,.14);
+    font-family:"IBM Plex Mono",monospace;font-size:11px;color:rgba(242,237,225,.4);
+    line-height:1.9}
+  .rail .foot b{color:rgba(242,237,225,.7);font-weight:500}
+
+  /* ---- main column ---- */
+  .main{display:flex;flex-direction:column;min-width:0}
+
+  /* context bar */
+  .ctxbar{position:sticky;top:0;z-index:50;background:var(--paper);
+    border-bottom:2px solid var(--ink);padding:18px 40px;
+    display:flex;align-items:center;gap:28px;flex-wrap:wrap}
+  .ctxbar .live{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.16em;
+    text-transform:uppercase;color:var(--ink-soft);display:flex;align-items:center;gap:9px}
+  .ctxbar .live .dot{width:8px;height:8px;border-radius:50%;background:var(--lime);
+    box-shadow:0 0 0 3px rgba(183,224,59,.25);animation:pulse 2.4s ease-in-out infinite}
+  @keyframes pulse{50%{box-shadow:0 0 0 7px rgba(183,224,59,0)}}
+  .ctxbar .spacer{flex:1}
+  .seg{display:flex;border:1.5px solid var(--ink);border-radius:3px;overflow:hidden}
+  .seg button{font-family:"IBM Plex Mono",monospace;font-size:12px;letter-spacing:.08em;
+    text-transform:uppercase;padding:8px 16px;background:var(--paper);color:var(--ink-soft);
+    border:none;cursor:pointer;transition:.2s;border-right:1px solid var(--line)}
+  .seg button:last-child{border-right:none}
+  .seg button.on{background:var(--ink);color:var(--paper)}
+  .ctxfield{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--ink-soft);
+    display:flex;align-items:center;gap:8px}
+  .ctxfield b{color:var(--ink);font-weight:600;font-size:14px}
+  .ctxfield select{font-family:"IBM Plex Mono",monospace;font-size:13px;padding:6px 10px;
+    border:1.5px solid var(--ink);background:var(--paper);color:var(--ink);border-radius:3px;cursor:pointer}
+  .icon-btn{font-family:"IBM Plex Mono",monospace;font-size:12px;padding:6px 11px;border:1.5px solid var(--ink);
+    background:var(--paper);color:var(--ink);border-radius:3px;cursor:pointer;transition:.2s}
+  .icon-btn:hover{background:var(--ink);color:var(--paper)}
+  .icon-btn.danger:hover{background:var(--clay);border-color:var(--clay);color:var(--paper)}
+
+  /* view container */
+  .view{padding:40px 40px 80px;max-width:1240px;animation:viewin .55s cubic-bezier(.16,1,.3,1)}
+  @keyframes viewin{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+  .rise{opacity:0;transform:translateY(20px);animation:rise .7s cubic-bezier(.16,1,.3,1) forwards}
+  @keyframes rise{to{opacity:1;transform:none}}
+  .loading{font-family:"IBM Plex Mono",monospace;font-size:13px;color:var(--ink-soft);padding:60px 0;text-align:center}
+
+  /* view header */
+  .vhead{margin-bottom:34px}
+  .vhead .step{font-family:"IBM Plex Mono",monospace;font-size:12px;letter-spacing:.2em;
+    text-transform:uppercase;color:var(--clay);margin-bottom:10px}
+  .vhead h1{font-family:"Fraunces",serif;font-weight:500;font-size:clamp(34px,5vw,54px);
+    line-height:1;letter-spacing:-.02em}
+  .vhead p{margin-top:14px;max-width:62ch;color:var(--ink-soft);font-size:15.5px}
+
+  .section-title{display:flex;align-items:baseline;gap:16px;margin:42px 0 22px}
+  .section-title h2{font-family:"Fraunces",serif;font-weight:500;font-size:24px;letter-spacing:-.01em}
+  .section-title .idx{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--clay);letter-spacing:.1em}
+  .section-title .rule{flex:1;height:1px;background:var(--line)}
+
+  /* ============ WEEK OVERVIEW ============ */
+  .vitals{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);
+    background:var(--paper-2);margin-bottom:14px}
+  .vital{padding:22px;border-right:1px solid var(--line)}
+  .vital:last-child{border-right:none}
+  .vital .label{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.16em;
+    text-transform:uppercase;color:var(--ink-soft)}
+  .vital .num{font-family:"Fraunces",serif;font-size:clamp(30px,4vw,46px);font-weight:500;
+    line-height:1;margin-top:10px;letter-spacing:-.02em}
+  .vital .num .u{font-family:"IBM Plex Mono",monospace;font-size:14px;color:var(--ink-soft);
+    font-weight:400;margin-left:4px}
+  .vital .sub{font-size:12.5px;color:var(--ink-soft);margin-top:7px}
+  .vital.alert .num{color:var(--clay)}
+
+  /* coverage meter */
+  .cover{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+  .meter{border:1px solid var(--line);background:var(--paper-2);padding:22px}
+  .meter .mt{display:flex;justify-content:space-between;align-items:baseline;
+    font-family:"IBM Plex Mono",monospace;font-size:12px;letter-spacing:.08em;
+    text-transform:uppercase;color:var(--ink-soft)}
+  .meter .mt b{font-family:"Fraunces",serif;font-size:26px;color:var(--ink);font-weight:500;letter-spacing:0}
+  .track{height:10px;background:var(--paper);border:1px solid var(--line);margin-top:14px;position:relative;overflow:hidden}
+  .track i{position:absolute;inset:0 100% 0 0;animation:grow 1.1s cubic-bezier(.16,1,.3,1) forwards}
+  .track i.survey{background:var(--lime-deep)}
+  .track i.lab{background:var(--gold)}
+  @keyframes grow{to{right:var(--r)}}
+
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .pt{background:var(--paper-2);border:1px solid var(--line);padding:20px;position:relative;
+    transition:transform .35s cubic-bezier(.16,1,.3,1),box-shadow .35s,border-color .35s;cursor:pointer}
+  .pt:hover{transform:translate(-5px,-5px);box-shadow:var(--shadow);border-color:var(--ink)}
+  .pt .id{font-family:"Fraunces",serif;font-size:30px;font-weight:600;line-height:1}
+  .pt .stage{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--ink-soft);margin-top:4px}
+  .pt .row{display:flex;justify-content:space-between;font-family:"IBM Plex Mono",monospace;
+    font-size:12.5px;margin-top:16px;padding-top:12px;border-top:1px dashed var(--line)}
+  .pt .row span:last-child{color:var(--ink-soft)}
+  .pt .coverbar{height:6px;background:var(--paper);border:1px solid var(--line);margin-top:14px;position:relative;overflow:hidden}
+  .pt .coverbar i{position:absolute;inset:0;background:var(--lime-deep)}
+  .status{position:absolute;top:20px;right:20px;width:11px;height:11px;border-radius:50%}
+  .status.ok{background:var(--lime);box-shadow:0 0 0 4px rgba(183,224,59,.18)}
+  .status.watch{background:var(--gold);box-shadow:0 0 0 4px rgba(216,167,54,.18)}
+  .status.flag{background:var(--clay);box-shadow:0 0 0 4px rgba(192,85,43,.18)}
+  .status.empty{background:var(--paper);border:1.5px solid var(--line);box-shadow:none}
+
+  /* ============ IMPORT VIEWS ============ */
+  .dropzone{border:2px dashed var(--line);border-radius:4px;background:var(--paper-2);
+    padding:46px 32px;text-align:center;transition:.3s;cursor:pointer;position:relative;overflow:hidden}
+  .dropzone:hover,.dropzone.hot{border-color:var(--ink);background:var(--paper-3)}
+  .dropzone .icon{width:54px;height:54px;margin:0 auto 18px;border:2px solid var(--ink);
+    border-radius:50%;display:flex;align-items:center;justify-content:center;
+    font-family:"Fraunces",serif;font-size:30px;color:var(--ink)}
+  .dropzone h3{font-family:"Fraunces",serif;font-weight:500;font-size:22px}
+  .dropzone .hint{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--ink-soft);margin-top:8px;letter-spacing:.04em}
+  .filechip{display:inline-flex;align-items:center;gap:10px;margin-top:22px;
+    background:var(--ink);color:var(--paper);font-family:"IBM Plex Mono",monospace;font-size:12px;
+    padding:9px 16px;border-radius:3px;letter-spacing:.04em}
+  .filechip .x{color:var(--lime)}
+
+  .panel{border:1px solid var(--line);background:var(--paper-2);margin-top:26px}
+  .panel .ph{display:flex;align-items:center;gap:14px;padding:16px 22px;border-bottom:1px solid var(--line);
+    font-family:"IBM Plex Mono",monospace;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft)}
+  .panel .ph .badge{margin-left:auto;background:var(--lime);color:var(--ink);padding:3px 10px;border-radius:2px;
+    font-weight:600;letter-spacing:.04em}
+  .panel .pbody{padding:8px 22px 22px;overflow-x:auto}
+
+  table.data{width:100%;border-collapse:collapse;font-family:"IBM Plex Mono",monospace;font-size:13px}
+  table.data th{text-align:left;font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--ink-soft);font-weight:500;padding:14px 12px 10px;border-bottom:1px solid var(--line)}
+  table.data td{padding:11px 12px;border-bottom:1px solid var(--line-2)}
+  table.data tr:last-child td{border-bottom:none}
+  table.data tr:hover td{background:var(--paper-3)}
+  .map-arrow{color:var(--clay)}
+  .tag-auto{font-size:10px;padding:2px 7px;border-radius:2px;background:rgba(183,224,59,.3);color:var(--ink-soft);letter-spacing:.06em}
+  .tag-skip{font-size:10px;padding:2px 7px;border-radius:2px;background:var(--paper-3);color:var(--ink-faint);letter-spacing:.06em}
+
+  select,input.cell{font-family:"IBM Plex Mono",monospace;font-size:12.5px;padding:6px 10px;
+    border:1px solid var(--line);background:var(--paper);color:var(--ink);border-radius:2px;cursor:pointer}
+  select:focus,input.cell:focus{outline:none;border-color:var(--ink)}
+
+  .photos{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
+  .photo{width:74px;height:74px;border:1px solid var(--line);border-radius:3px;
+    display:flex;align-items:center;justify-content:center;font-family:"IBM Plex Mono",monospace;
+    font-size:10px;color:var(--paper);position:relative;overflow:hidden;background:var(--ink-soft)}
+  .photo img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+  .photo span{position:relative;z-index:2;background:rgba(27,42,33,.55);padding:2px 5px;border-radius:2px}
+  .photo.add{border-style:dashed;background:var(--paper-2);color:var(--ink-faint);cursor:pointer}
+  .photo.add span{background:none;color:var(--ink-faint);font-size:22px}
+
+  .btn{font-family:"IBM Plex Mono",monospace;font-size:13px;letter-spacing:.08em;text-transform:uppercase;
+    padding:14px 28px;border:2px solid var(--ink);background:var(--ink);color:var(--paper);
+    border-radius:3px;cursor:pointer;transition:.25s;display:inline-flex;align-items:center;gap:12px}
+  .btn:hover{background:var(--lime);border-color:var(--lime);color:var(--ink)}
+  .btn.ghost{background:transparent;color:var(--ink)}
+  .btn.ghost:hover{background:var(--ink);color:var(--paper)}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+  .actions{margin-top:26px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+  .actions .note{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--ink-soft)}
+
+  /* ============ OBSERVATIONS ============ */
+  .obswrap{display:grid;grid-template-columns:150px 1fr;gap:0;border:1px solid var(--line);background:var(--paper-2)}
+  .ptrail{border-right:1px solid var(--line);padding:14px}
+  .ptrail button{display:flex;justify-content:space-between;align-items:center;width:100%;
+    font-family:"IBM Plex Mono",monospace;font-size:14px;padding:11px 14px;background:transparent;
+    border:none;border-radius:3px;cursor:pointer;color:var(--ink-soft);margin-bottom:3px;transition:.2s}
+  .ptrail button:hover{background:var(--paper-3);color:var(--ink)}
+  .ptrail button.on{background:var(--ink);color:var(--paper)}
+  .ptrail button .pd{width:7px;height:7px;border-radius:50%}
+  .pd.ok{background:var(--lime)}.pd.watch{background:var(--gold)}.pd.flag{background:var(--clay)}.pd.empty{background:var(--line)}
+  .obsbody{padding:26px 30px}
+  .subtabs{display:flex;gap:6px;margin-bottom:24px;border-bottom:1px solid var(--line)}
+  .subtabs button{font-family:"IBM Plex Mono",monospace;font-size:12px;letter-spacing:.08em;text-transform:uppercase;
+    padding:11px 18px;background:transparent;border:none;border-bottom:2px solid transparent;color:var(--ink-soft);cursor:pointer;margin-bottom:-1px}
+  .subtabs button.on{color:var(--ink);border-bottom-color:var(--clay)}
+
+  .fgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:18px 32px}
+  .field{display:flex;flex-direction:column;gap:7px}
+  .field label{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft)}
+  .field .ctrl{font-family:"IBM Plex Mono",monospace;font-size:14px;border:1px solid var(--line);
+    background:var(--paper);padding:9px 12px;border-radius:2px;color:var(--ink);width:100%}
+  .field .ctrl:focus{outline:none;border-color:var(--ink)}
+  .grp{margin-bottom:30px}
+  .grp h4{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--clay);margin-bottom:16px;padding-bottom:8px;border-bottom:1px dashed var(--line)}
+
+  .tdrtable{width:100%;border-collapse:collapse;font-family:"IBM Plex Mono",monospace;font-size:13px}
+  .tdrtable th{text-align:right;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);
+    font-weight:500;padding:8px 10px}
+  .tdrtable th:first-child{text-align:left}
+  .tdrtable td{padding:6px 10px;text-align:right;border-top:1px solid var(--line-2)}
+  .tdrtable td:first-child{text-align:left;color:var(--ink-soft)}
+  .tdrtable input{width:90px;text-align:right;font-family:"IBM Plex Mono",monospace;font-size:13px;
+    border:1px solid var(--line);background:var(--paper);padding:5px 8px;border-radius:2px;color:var(--ink)}
+
+  .dz-row{display:grid;grid-template-columns:1.4fr .8fr 1fr;gap:14px;align-items:center;
+    padding:10px 0;border-bottom:1px solid var(--line-2);font-family:"IBM Plex Mono",monospace;font-size:13px}
+  .dz-row:last-child{border-bottom:none}
+  .dz-row select{width:100%}
+
+  /* lab nutrient grid */
+  .nutgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+  .nutcell{border:1px solid var(--line);background:var(--paper);padding:12px 14px}
+  .nutcell .el{font-family:"Fraunces",serif;font-size:18px;font-weight:600;display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .nutcell .el .u{font-family:"IBM Plex Mono",monospace;font-size:10px;color:var(--ink-faint);font-weight:400}
+  .nutcell input{width:100%;margin-top:8px;font-family:"IBM Plex Mono",monospace;font-size:13px;
+    border:1px solid var(--line);background:var(--paper-2);padding:6px 8px;border-radius:2px;color:var(--ink)}
+  .nutcell .rate-in{width:54px;margin-top:0;text-align:center;text-transform:uppercase}
+
+  .ratios{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+  .ratio{border:1px solid var(--line);background:var(--paper);padding:12px 16px;
+    display:flex;justify-content:space-between;align-items:center;gap:10px;font-family:"IBM Plex Mono",monospace}
+  .ratio .rn{font-weight:600;font-size:14px}
+  .ratio .rv{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-faint)}
+  .ratio input{width:64px;text-align:right;font-family:"IBM Plex Mono",monospace;font-size:13px;
+    border:1px solid var(--line);background:var(--paper-2);padding:5px 7px;border-radius:2px;color:var(--ink)}
+
+  /* ============ EXPORT ============ */
+  .expgrid{display:grid;grid-template-columns:1fr 1.1fr;gap:26px;align-items:start}
+  .manifest{border:2px solid var(--ink);background:var(--ink);color:var(--paper);padding:30px}
+  .manifest h3{font-family:"Fraunces",serif;font-size:24px;font-weight:500;margin-bottom:4px}
+  .manifest .zip{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--lime);letter-spacing:.04em;margin-bottom:22px}
+  .tree{font-family:"IBM Plex Mono",monospace;font-size:13px;line-height:2.05}
+  .tree .f{color:rgba(242,237,225,.55)}
+  .tree .n{color:var(--paper)}
+  .tree .sz{color:var(--lime);float:right}
+  .tree .dir{color:var(--gold)}
+  .tree .empty{color:rgba(242,237,225,.4)}
+
+  .runner{border:1px solid var(--line);background:var(--paper-2);padding:30px}
+  .runner h3{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:22px}
+  .stage{display:flex;align-items:center;gap:16px;padding:14px 0;border-bottom:1px solid var(--line-2)}
+  .stage:last-child{border-bottom:none}
+  .stage .dot{width:24px;height:24px;border-radius:50%;border:2px solid var(--line);flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--ink-faint);transition:.3s}
+  .stage.run .dot{border-color:var(--gold);color:var(--gold);animation:spin 1s linear infinite}
+  .stage.done .dot{background:var(--lime);border-color:var(--lime);color:var(--ink)}
+  .stage.fail .dot{background:var(--clay);border-color:var(--clay);color:var(--paper)}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .stage .st{font-family:"IBM Plex Mono",monospace;font-size:13.5px;color:var(--ink-soft);transition:.3s}
+  .stage.done .st,.stage.run .st{color:var(--ink)}
+  .stage .stsub{font-size:11px;color:var(--ink-faint);display:block;margin-top:2px;letter-spacing:.02em}
+
+  .toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(120px);
+    background:var(--ink);color:var(--paper);font-family:"IBM Plex Mono",monospace;font-size:13px;
+    padding:14px 26px;border-radius:3px;letter-spacing:.04em;z-index:200;transition:transform .4s cubic-bezier(.16,1,.3,1);
+    display:flex;align-items:center;gap:12px;box-shadow:0 12px 40px rgba(27,42,33,.25);max-width:80vw}
+  .toast.show{transform:translateX(-50%) translateY(0)}
+  .toast .tk{color:var(--lime)}
+  .toast.err .tk{color:var(--clay-soft)}
+
+  @media(max-width:1080px){
+    .app{grid-template-columns:1fr}
+    .rail{position:static;height:auto;flex-direction:row;align-items:center;border-right:none;border-bottom:2px solid var(--ink);padding:16px 20px;overflow-x:auto}
+    .rail .brand{border-bottom:none;border-right:1px solid rgba(242,237,225,.14);padding:0 22px 0 0}
+    .rail .wordmark{font-size:30px}.rail .tag{display:none}
+    nav{display:flex;padding:0 0 0 16px;gap:4px}.nav-item{margin-bottom:0;white-space:nowrap}
+    .nav-item .nl{display:none}.rail .foot{display:none}
+    .vitals,.nutgrid{grid-template-columns:repeat(2,1fr)}
+    .grid3,.cover,.ratios,.expgrid{grid-template-columns:1fr}
+    .fgrid{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ============ LEFT RAIL ============ -->
+  <aside class="rail">
+    <div class="brand">
+      <div class="wordmark">Mag<span class="bird">pie</span></div>
+      <div class="tag">Weekly Package Builder</div>
+    </div>
+    <nav id="nav"></nav>
+    <div class="foot">
+      DB · <b>packages.sqlite</b><br>
+      Frontend · <b>web · localhost</b><br>
+      Build · <b>v0.1.0</b>
+    </div>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <div class="main">
+    <div class="ctxbar">
+      <div class="live"><span class="dot"></span>Working set</div>
+      <div class="seg" id="cropseg"></div>
+      <div class="ctxfield">Week
+        <select id="weekSel"></select>
+        <button class="icon-btn" id="newWeek" title="Create the current ISO week">+ Week</button>
+        <button class="icon-btn danger" id="delWeek" title="Delete this week (obs rows cascade)">Delete</button>
+      </div>
+      <div class="spacer"></div>
+      <div class="ctxfield" id="issued"></div>
+    </div>
+    <div class="view" id="view"><div class="loading">Loading…</div></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><span class="tk">✓</span><span id="toastmsg"></span></div>
+
+<script>
+/* ============================================================
+   Magpie web frontend — live, API-driven.
+   Every view fetches from the FastAPI layer (which delegates to
+   app/services/*), so this stays in lockstep with the desktop.
+============================================================ */
+
+const NAV = [
+  {id:"overview", n:"01", l:"Week overview"},
+  {id:"survey",   n:"02", l:"Survey123 import"},
+  {id:"lab",      n:"03", l:"Lab import"},
+  {id:"obs",      n:"04", l:"Observations"},
+  {id:"export",   n:"05", l:"Export"},
+];
+
+const STATE = {
+  crops:[], crop:null, weeks:[], week:null, view:"overview",
+  schemaCache:{}, overview:null,
+  activePt:null, obsTab:"field", obsValues:{}, obsImages:[],
+  survey:null,   // {token, filename, preview}
+  lab:null,      // {token, filename, preview, targets:{idx:loc}}
+};
+
+// ---------- API ----------
+const API = {
+  async _json(r){
+    if(!r.ok){
+      let detail = r.statusText;
+      try{ detail = (await r.json()).detail || detail; }catch(e){}
+      throw new Error(detail);
+    }
+    return r.json();
+  },
+  get(p){ return fetch(p).then(this._json); },
+  post(p, body){ return fetch(p,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body||{})}).then(this._json); },
+  put(p, body){ return fetch(p,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}).then(this._json); },
+  del(p){ return fetch(p,{method:"DELETE"}).then(this._json); },
+  upload(p, form){ return fetch(p,{method:"POST",body:form}).then(this._json); },
+};
+
+// ---------- helpers ----------
+const $ = s => document.querySelector(s);
+const esc = s => String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const cap = s => s ? s[0].toUpperCase()+s.slice(1) : s;
+function toast(msg, err){const t=$("#toast");$("#toastmsg").textContent=msg;t.classList.toggle("err",!!err);t.querySelector(".tk").textContent=err?"!":"✓";t.classList.add("show");clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove("show"),3200);}
+function statusClass(filled, expected){ if(!filled) return "empty"; if(filled>=expected) return "ok"; return "watch"; }
+
+// ---------- context bar ----------
+function renderCtx(){
+  $("#cropseg").innerHTML = STATE.crops.map(c=>
+    `<button data-crop="${c.code}" class="${c.code===STATE.crop?"on":""}">${esc(c.display_name)}</button>`).join("");
+  $("#cropseg").querySelectorAll("button").forEach(b=>b.onclick=()=>{
+    if(b.dataset.crop===STATE.crop) return;
+    STATE.crop=b.dataset.crop; STATE.activePt=null; STATE.survey=null; STATE.lab=null;
+    boot.refreshAndRender();
+  });
+  const w=$("#weekSel");
+  w.innerHTML = STATE.weeks.map(wk=>`<option value="${wk}" ${wk===STATE.week?"selected":""}>${wk}</option>`).join("")
+    || `<option>(no weeks)</option>`;
+  w.onchange=()=>{ STATE.week=w.value; STATE.activePt=null; boot.refreshAndRender(); };
+  $("#newWeek").onclick=async()=>{
+    const {current}=await API.get("/api/weeks");
+    if(STATE.weeks.includes(current)){ STATE.week=current; toast(`Week ${current} already exists — selected it`); }
+    else { await API.post("/api/weeks",{tag:current}); toast(`Created week ${current}`); }
+    await boot.loadWeeks(); STATE.week=current; boot.refreshAndRender();
+  };
+  $("#delWeek").onclick=async()=>{
+    if(!STATE.week) return;
+    if(!confirm(`Delete week ${STATE.week}? Observation rows for every crop in this week are removed.`)) return;
+    await API.del(`/api/weeks/${encodeURIComponent(STATE.week)}`);
+    toast(`Deleted week ${STATE.week}`);
+    await boot.loadWeeks(); STATE.week=STATE.weeks[0]||null; boot.refreshAndRender();
+  };
+  $("#issued").innerHTML = `Issued <b>${new Date().toISOString().slice(0,10)}</b> · Olds, AB`;
+}
+
+// ---------- nav ----------
+function renderNav(){
+  $("#nav").innerHTML = NAV.map(it=>{
+    const done = (it.id==="survey"&&STATE.survey&&STATE.survey.committed) ||
+                 (it.id==="lab"&&STATE.lab&&STATE.lab.committed);
+    return `<div class="nav-item ${STATE.view===it.id?"active":""}" data-view="${it.id}">
+      <span class="ni">${it.n}</span><span class="nl">${it.l}</span>
+      <span class="nd ${done?"done":""}"></span></div>`;
+  }).join("");
+  $("#nav").querySelectorAll(".nav-item").forEach(el=>el.onclick=()=>{STATE.view=el.dataset.view;render();});
+}
+
+// ============================================================
+//  VIEW 01 — WEEK OVERVIEW
+// ============================================================
+async function viewOverview(){
+  const ov = STATE.overview = await API.get(`/api/overview?crop=${STATE.crop}&week=${encodeURIComponent(STATE.week)}`);
+  const exp = ov.expected_fields, total = ov.total_locations;
+  const totFilled = ov.locations.reduce((a,l)=>a+l.filled,0);
+  const totPossible = exp*total || 1;
+  const pct = Math.round(totFilled/totPossible*100);
+  const covPct = Math.round(ov.locations_with_data/(total||1)*100);
+
+  const cards = ov.locations.map((l,i)=>{
+    const cls = statusClass(l.filled, exp);
+    const fpct = Math.min(100, Math.round(l.filled/(exp||1)*100));
+    return `<article class="pt rise" style="animation-delay:${.04*i}s" data-pt="${l.location_id}">
+      <span class="status ${cls}"></span>
+      <div class="id">${esc(l.location_id)}</div>
+      <div class="stage">${esc(l.lat)}, ${esc(l.lon)}</div>
+      <div class="coverbar"><i style="width:${fpct}%"></i></div>
+      <div class="row"><span>Fields with data</span><span>${l.filled} / ${exp}</span></div>
+    </article>`;
+  }).join("");
+
+  return `
+  <div class="vhead rise">
+    <div class="step">Step 01 · Pipeline start</div>
+    <h1>Week overview</h1>
+    <p>The working set for <b>${cap(STATE.crop)} · ${STATE.week}</b>. Each fixed monitoring point shows how many template fields carry a value — the same coverage the desktop Week-overview tab computes, straight from <b>obs_${STATE.crop}</b>.</p>
+  </div>
+
+  <div class="vitals rise" style="animation-delay:.06s">
+    <div class="vital"><div class="label">Locations with data</div><div class="num">${ov.locations_with_data}<span class="u">/${total}</span></div><div class="sub">at least one field filled</div></div>
+    <div class="vital"><div class="label">Fields filled</div><div class="num">${totFilled}<span class="u">/${totPossible}</span></div><div class="sub">across all points</div></div>
+    <div class="vital"><div class="label">Coverage</div><div class="num">${pct}<span class="u">%</span></div><div class="sub">of expected field values</div></div>
+    <div class="vital ${ov.locations_with_data<total?"alert":""}"><div class="label">Expected / point</div><div class="num">${exp}</div><div class="sub">template data fields</div></div>
+  </div>
+
+  <div class="cover rise" style="animation-delay:.12s">
+    <div class="meter"><div class="mt"><span>Locations covered</span><b>${ov.locations_with_data}/${total}</b></div>
+      <div class="track"><i class="survey" style="--r:${100-covPct}%"></i></div></div>
+    <div class="meter"><div class="mt"><span>Field values filled</span><b>${pct}%</b></div>
+      <div class="track"><i class="lab" style="--r:${100-pct}%"></i></div></div>
+  </div>
+
+  <div class="section-title rise" style="animation-delay:.16s"><span class="idx">01·A</span><h2>Monitoring points</h2><span class="rule"></span></div>
+  <div class="grid3">${cards}</div>`;
+}
+
+// ============================================================
+//  VIEW 02 — SURVEY123 IMPORT
+// ============================================================
+function pickIdColumn(preview){
+  // Prefer the source col auto-mapped to template "ID"; else common names.
+  for(const [src,tgt] of Object.entries(preview.mapping.matches)) if(tgt==="ID") return src;
+  for(const c of preview.source_cols) if(["id","location","location_id","site"].includes(c.trim().toLowerCase())) return c;
+  return preview.source_cols[0]||"";
+}
+async function viewSurvey(){
+  const s = STATE.survey;
+  if(!s){
+    return `
+    <div class="vhead rise"><div class="step">Step 02 · Field feed</div><h1>Survey123 import</h1>
+      <p>Upload the week's Survey123 export. Magpie matches its columns to the <b>${cap(STATE.crop)}</b> template by exact-then-normalized name and joins each row to a monitoring point by the ID column you pick.</p></div>
+    <div class="dropzone rise" id="drop" style="animation-delay:.05s">
+      <div class="icon">↧</div><h3>Drop Survey123 export · .xlsx / .csv</h3>
+      <div class="hint">or click to browse</div>
+      <input type="file" id="file" accept=".csv,.xlsx,.xls,.xlsm" hidden>
+    </div>`;
+  }
+  const p = s.preview;
+  const matched = Object.entries(p.mapping.matches);
+  const idCol = s.idCol || (s.idCol = pickIdColumn(p));
+  const mapRows = p.source_cols.map(c=>{
+    const tgt = p.mapping.matches[c];
+    return `<tr><td>${esc(c)}</td><td class="map-arrow">→</td>
+      <td>${tgt?esc(tgt):'<span style="color:var(--ink-faint)">(unmapped — not written)</span>'}</td>
+      <td>${tgt?'<span class="tag-auto">auto</span>':'<span class="tag-skip">skip</span>'}</td></tr>`;
+  }).join("");
+  const idOpts = p.source_cols.map(c=>`<option value="${esc(c)}" ${c===idCol?"selected":""}>${esc(c)}</option>`).join("");
+  return `
+  <div class="vhead rise"><div class="step">Step 02 · Field feed</div><h1>Survey123 import</h1>
+    <p>Loaded <b>${esc(s.filename)}</b>. Confirm the join column, then commit into <b>obs_${STATE.crop} · ${STATE.week}</b>.</p></div>
+  <div class="dropzone rise" id="drop"><div class="icon">▣</div>
+    <h3>${esc(s.filename)}</h3><div class="hint">${p.row_count} rows · ${matched.length} columns mapped</div>
+    <div class="filechip"><span class="x">▣</span> ${esc(s.filename)} · ${p.row_count} rows</div>
+    <input type="file" id="file" accept=".csv,.xlsx,.xls,.xlsm" hidden>
+  </div>
+  <div class="actions rise" style="margin-top:22px">
+    <div class="ctxfield">Source ID column <select id="idCol">${idOpts}</select></div>
+    <button class="btn" id="commit">Commit → obs_${STATE.crop}</button>
+    <span class="note">re-upload to re-map</span>
+  </div>
+  <div class="panel rise">
+    <div class="ph">Column mapping <span class="badge">${matched.length} mapped · ${p.mapping.unmatched_source.length} skipped</span></div>
+    <div class="pbody"><table class="data">
+      <thead><tr><th>Source column</th><th></th><th>Template field</th><th>Status</th></tr></thead>
+      <tbody>${mapRows}</tbody></table></div>
+  </div>`;
+}
+
+// ============================================================
+//  VIEW 03 — LAB IMPORT
+// ============================================================
+function labDisplayCols(p){
+  const pri = ["sampleid","reportdate","reportno","labno","lab_no.","lab_no"];
+  const priority = p.source_cols.filter(c=>pri.includes(c.trim().toLowerCase()));
+  const mapped = p.source_cols.filter(c=>c in p.mapping.matches);
+  const rest = mapped.filter(c=>!priority.includes(c)).slice(0,6);
+  return priority.concat(rest);
+}
+async function viewLab(){
+  const s = STATE.lab;
+  if(!s){
+    return `
+    <div class="vhead rise"><div class="step">Step 03 · Lab feed</div><h1>Lab import</h1>
+      <p>Upload the PT2R lab workbook (legacy <b>.xls</b> read via python-calamine). The lab's SampleID doesn't map to a monitoring point automatically — assign a <b>Target location</b> per row. Each location takes at most one row.</p></div>
+    <div class="dropzone rise" id="drop" style="animation-delay:.05s">
+      <div class="icon">↧</div><h3>Drop PT2R lab report · .xls / .csv</h3>
+      <div class="hint">or click to browse</div>
+      <input type="file" id="file" accept=".csv,.xlsx,.xls,.xlsm" hidden>
+    </div>`;
+  }
+  const p = s.preview;
+  const locs = STATE.overview ? STATE.overview.locations.map(l=>l.location_id)
+                              : (await API.get(`/api/overview?crop=${STATE.crop}&week=${encodeURIComponent(STATE.week)}`)).locations.map(l=>l.location_id);
+  const cols = labDisplayCols(p);
+  if(!s.targets){
+    // Heuristic pre-fill: if a row value equals a known location id, select it.
+    s.targets = {};
+    const idCol = pickIdColumn(p);
+    p.rows.forEach((row,i)=>{ const g=(row[idCol]||"").trim(); if(locs.includes(g)) s.targets[i]=g; });
+  }
+  const head = cols.map(c=>`<th>${esc(c)}</th>`).join("");
+  const body = p.rows.map((row,i)=>{
+    const cells = cols.map(c=>`<td>${esc(row[c]||"")}</td>`).join("");
+    const sel = s.targets[i]||"";
+    const opts = `<option value="">(skip)</option>`+locs.map(l=>`<option value="${l}" ${l===sel?"selected":""}>${l}</option>`).join("");
+    return `<tr>${cells}<td><select data-row="${i}">${opts}</select></td></tr>`;
+  }).join("");
+  const assigned = Object.values(s.targets).filter(Boolean).length;
+  return `
+  <div class="vhead rise"><div class="step">Step 03 · Lab feed</div><h1>Lab import</h1>
+    <p>Loaded <b>${esc(s.filename)}</b> · ${p.row_count} rows. Assign each row to a monitoring point, then commit into <b>obs_${STATE.crop} · ${STATE.week}</b>.</p></div>
+  <div class="dropzone rise" id="drop"><div class="icon">▣</div>
+    <h3>${esc(s.filename)}</h3><div class="hint">${p.row_count} rows · ${Object.keys(p.mapping.matches).length} columns mapped</div>
+    <div class="filechip"><span class="x">▣</span> ${esc(s.filename)} · ${p.row_count} rows</div>
+    <input type="file" id="file" accept=".csv,.xlsx,.xls,.xlsm" hidden>
+  </div>
+  <div class="actions rise" style="margin-top:22px">
+    <button class="btn" id="commit">Commit ${assigned} rows → obs_${STATE.crop}</button>
+    <span class="note">only mapped, non-blank cells overwrite</span>
+  </div>
+  <div class="panel rise">
+    <div class="ph">Row assignment <span class="badge" id="assignBadge">${assigned} assigned</span></div>
+    <div class="pbody"><table class="data">
+      <thead><tr>${head}<th>Target location</th></tr></thead>
+      <tbody>${body}</tbody></table></div>
+  </div>`;
+}
+
+// ============================================================
+//  VIEW 04 — OBSERVATIONS
+// ============================================================
+async function ensureSchema(){
+  if(!STATE.schemaCache[STATE.crop])
+    STATE.schemaCache[STATE.crop] = await API.get(`/api/form-schema?crop=${STATE.crop}`);
+  return STATE.schemaCache[STATE.crop];
+}
+async function ensureOverview(){
+  if(!STATE.overview || STATE.overview._key!==STATE.crop+STATE.week){
+    STATE.overview = await API.get(`/api/overview?crop=${STATE.crop}&week=${encodeURIComponent(STATE.week)}`);
+    STATE.overview._key = STATE.crop+STATE.week;
+  }
+  return STATE.overview;
+}
+async function loadObs(){
+  const loc=STATE.activePt;
+  const r = await API.get(`/api/obs?crop=${STATE.crop}&week=${encodeURIComponent(STATE.week)}&loc=${loc}`);
+  STATE.obsValues = r.values||{};
+  const im = await API.get(`/api/images?crop=${STATE.crop}&week=${encodeURIComponent(STATE.week)}&loc=${loc}`);
+  STATE.obsImages = im.images||[];
+}
+
+function ctrl(field){
+  // Returns an input/select HTML carrying data-fname for save-time collection.
+  const v = esc(STATE.obsValues[field.name]||"");
+  const k = field.kind, nm = esc(field.name);
+  if(k==="growth_stage"){
+    const sch = STATE.schemaCache[STATE.crop];
+    const opts = [`<option value=""></option>`].concat(sch.growth_stages.map(g=>{
+      const label=`${g.code} - ${g.description}`;
+      return `<option value="${esc(label)}" ${label===(STATE.obsValues[field.name]||"")?"selected":""}>${esc(label)}</option>`;
+    }));
+    return `<select class="ctrl" data-fname="${nm}">${opts.join("")}</select>`;
+  }
+  if(k==="disease_presence"||k==="severity"){
+    const opts = field.choices.map(c=>`<option value="${esc(c)}" ${c===(STATE.obsValues[field.name]||"")?"selected":""}>${c===""?"—":esc(c)}</option>`).join("");
+    return `<select class="ctrl" data-fname="${nm}">${opts}</select>`;
+  }
+  if(k==="rating"){
+    const list = `dl_${nm.replace(/\W/g,"")}`;
+    const opts = field.choices.filter(Boolean).map(c=>`<option value="${esc(c)}">`).join("");
+    return `<input class="ctrl" data-fname="${nm}" list="${list}" value="${v}"><datalist id="${list}">${opts}</datalist>`;
+  }
+  const ph = k==="datetime" ? ` placeholder="YYYY-MM-DD HH:MM"` : (k==="number"?` inputmode="decimal"`:"");
+  return `<input class="ctrl" data-fname="${nm}" value="${v}"${ph}>`;
+}
+function bareCtrl(field, cls){
+  const v = esc(STATE.obsValues[field.name]||""); const nm=esc(field.name);
+  if(field.kind==="severity"||field.kind==="disease_presence"){
+    const opts = field.choices.map(c=>`<option value="${esc(c)}" ${c===(STATE.obsValues[field.name]||"")?"selected":""}>${c===""?"—":esc(c)}</option>`).join("");
+    return `<select data-fname="${nm}">${opts}</select>`;
+  }
+  return `<input class="${cls||""}" data-fname="${nm}" value="${v}">`;
+}
+
+function sectionHtml(sec){
+  if(sec.kind==="tdr_grid"){
+    const row=(label,f)=>`<td>${f?bareCtrl(f):""}</td>`;
+    const rows=sec.tdr_rows.map(t=>`<tr><td>${esc(t.sensor_label)}</td>${row("temp",t.temperature)}${row("ec",t.ec)}${row("moist",t.moisture)}</tr>`).join("");
+    return `<div class="grp"><h4>${esc(sec.title)}</h4><table class="tdrtable">
+      <thead><tr><th>Sensor</th><th>Temperature</th><th>EC</th><th>Moisture</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>`;
+  }
+  if(sec.kind==="disease_table"){
+    const rows=sec.disease_rows.map(d=>`<div class="dz-row">
+      <span>${esc(d.label)}</span>
+      <span>${bareCtrl(d.presence)}</span>
+      <span>${d.severity?bareCtrl(d.severity):""}</span></div>`).join("");
+    return `<div class="grp"><h4>${esc(sec.title)} · presence &amp; severity</h4>
+      <div class="dz-row" style="color:var(--ink-faint);font-size:10px;letter-spacing:.08em;text-transform:uppercase;border-bottom:1px solid var(--line)">
+        <span>Disease</span><span>Present</span><span>Severity · L 1–10% / M 10–30% / H &gt;30%</span></div>
+      ${rows}</div>`;
+  }
+  if(sec.kind==="nutrient_table"){
+    const cells=sec.nutrient_rows.map(n=>{
+      const key=esc(n.value.key);
+      const unit=(n.value.name.match(/\(([^)]+)\)/)||[,""])[1];
+      const rate=n.rate?`<input class="rate-in" data-fname="${esc(n.rate.name)}" value="${esc(STATE.obsValues[n.rate.name]||"")}" placeholder="rate">`:"";
+      return `<div class="nutcell"><div class="el"><span>${key}<span class="u"> ${esc(unit)}</span></span>${rate}</div>
+        <input data-fname="${esc(n.value.name)}" value="${esc(STATE.obsValues[n.value.name]||"")}" placeholder="value"></div>`;
+    }).join("");
+    return `<div class="grp"><h4>${esc(sec.title)} · level &amp; rate code (D / L / S / H / VH)</h4><div class="nutgrid">${cells}</div></div>`;
+  }
+  if(sec.kind==="ratio_table"){
+    const rows=sec.ratio_rows.map(r=>`<div class="ratio"><div class="rn">${esc(r.name)}</div>
+      <div class="rv"><input data-fname="${esc(r.actual.name)}" value="${esc(STATE.obsValues[r.actual.name]||"")}" placeholder="actual">
+      <span>/</span>${r.expected?`<input data-fname="${esc(r.expected.name)}" value="${esc(STATE.obsValues[r.expected.name]||"")}" placeholder="exp">`:"<span>—</span>"}</div></div>`).join("");
+    return `<div class="grp"><h4>${esc(sec.title)} · actual / expected</h4><div class="ratios">${rows}</div></div>`;
+  }
+  if(sec.kind==="images"){
+    const thumbs=STATE.obsImages.map((n,i)=>{
+      const url=`/api/images/file?crop=${STATE.crop}&week=${encodeURIComponent(STATE.week)}&loc=${STATE.activePt}&name=${encodeURIComponent(n)}`;
+      return `<div class="photo"><img src="${url}" alt=""><span>${esc(n)}</span></div>`;
+    }).join("");
+    return `<div class="grp"><h4>${esc(sec.title)} · ${STATE.obsImages.length} attached</h4>
+      <div class="photos">${thumbs}
+        <div class="photo add" id="addPhoto"><span>+</span></div></div>
+      <input type="file" id="photoFile" accept="image/*" hidden></div>`;
+  }
+  // form
+  const fields=sec.fields.map(f=>`<div class="field"><label>${esc(f.name.replace(/_/g," "))}</label>${ctrl(f)}</div>`).join("");
+  return `<div class="grp"><h4>${esc(sec.title)}</h4><div class="fgrid">${fields}</div></div>`;
+}
+
+async function viewObs(){
+  const sch = await ensureSchema();
+  const ov = await ensureOverview();
+  const locs = ov.locations;
+  if(!STATE.activePt && locs.length) STATE.activePt = locs[0].location_id;
+  await loadObs();
+
+  const rail = locs.map(l=>`<button class="${l.location_id===STATE.activePt?"on":""}" data-pt="${l.location_id}">
+    <span>${esc(l.location_id)}</span><span class="pd ${statusClass(l.filled,ov.expected_fields)}"></span></button>`).join("");
+
+  const page = STATE.obsTab;
+  const secs = sch.sections.filter(s=>s.page===page).map(sectionHtml).join("");
+  return `
+  <div class="vhead rise"><div class="step">Step 04 · Review &amp; edit</div><h1>Observations</h1>
+    <p>Everything merged from both feeds for <b>${cap(STATE.crop)} · ${STATE.week}</b>, hand-editable before export. The form is built from the shared schema — the exact sections the desktop renders. Pick a point on the left.</p></div>
+  <div class="obswrap rise" style="animation-delay:.05s">
+    <div class="ptrail">${rail}</div>
+    <div class="obsbody">
+      <div class="subtabs">
+        <button class="${page==="field"?"on":""}" data-tab="field">Field observations</button>
+        <button class="${page==="lab"?"on":""}" data-tab="lab">Lab report</button>
+      </div>
+      ${secs}
+      <div class="actions" style="margin-top:8px">
+        <button class="btn" id="obsSave">Save ${esc(STATE.activePt||"")}</button>
+        <button class="btn ghost" id="obsReload">Reload</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+async function saveObs(){
+  const values={};
+  $("#view").querySelectorAll("[data-fname]").forEach(el=>{ values[el.dataset.fname]=el.value.trim(); });
+  // Keep the Images cell in sync with what's actually in storage.
+  if(STATE.schemaCache[STATE.crop].sections.some(s=>s.kind==="images"))
+    values["Images"]=STATE.obsImages.join("; ");
+  await API.put("/api/obs",{crop:STATE.crop,week:STATE.week,loc:STATE.activePt,values});
+  STATE.overview=null; // coverage changed
+  toast(`Saved ${STATE.crop} / ${STATE.week} / ${STATE.activePt}`);
+  render();
+}
+
+// ============================================================
+//  VIEW 05 — EXPORT
+// ============================================================
+function viewExport(){
+  const crop=cap(STATE.crop);
+  const stages=[
+    ["Stamp template",`Static ${crop} Template.xlsx → ${crop}_${STATE.week}.xlsx`],
+    ["Build GeoPackage",`Point features · EPSG:4326`],
+    ["Copy photos",`exports/${STATE.week}/images/${STATE.crop}/`],
+    ["Bundle deliverable",`zip → EarthDaily_${STATE.week}.zip`],
+  ];
+  return `
+  <div class="vhead rise"><div class="step">Step 05 · Deliverable</div><h1>Export package</h1>
+    <p>Stamp the data into a copy of the template (styling preserved), write a matching GeoPackage, copy the photos, and zip the lot. The same service the desktop Export tab calls — identical output.</p></div>
+  <div class="expgrid">
+    <div class="runner rise" style="animation-delay:.05s">
+      <h3>Build sequence</h3>
+      <div id="stages">${stages.map((s,i)=>`<div class="stage" data-i="${i}">
+        <div class="dot">${i+1}</div><div><span class="st">${s[0]}</span><span class="stsub">${esc(s[1])}</span></div></div>`).join("")}</div>
+      <div class="actions" style="margin-top:24px">
+        <button class="btn" id="runExport">Export ${crop} · ${STATE.week}</button>
+        <button class="btn ghost" id="runExportAll">Export all crops</button>
+      </div>
+    </div>
+    <div class="manifest rise" style="animation-delay:.12s">
+      <h3 id="manTitle">${crop} weekly package</h3>
+      <div class="zip">exports/${STATE.week}/</div>
+      <div class="tree" id="tree"><div class="empty">Run the export to build the package.</div></div>
+      <div class="actions" style="margin-top:18px"><a class="btn" id="dlZip" style="display:none" href="#">↧ Download .zip</a></div>
+    </div>
+  </div>`;
+}
+function renderManifest(res){
+  const tree=$("#tree");
+  if(res.errors&&res.errors.length){
+    tree.innerHTML = res.errors.map(e=>`<div class="empty">✗ ${esc(e.crop)}: ${esc(e.message)}</div>`).join("");
+  }
+  if(!res.produced.length){ if(!res.errors.length) tree.innerHTML=`<div class="empty">Nothing produced.</div>`; return; }
+  const files=res.produced.filter(n=>!n.endsWith(".zip"));
+  const zip=res.produced.find(n=>n.endsWith(".zip"));
+  let html=`<div><span class="dir">▸ ${STATE.week}/</span></div>`;
+  files.forEach((f,i)=>{ const last=i===files.length-1&&!zip;
+    html+=`<div><span class="f">&nbsp;&nbsp;${last?"└─":"├─"} </span><span class="n">${esc(f)}</span></div>`; });
+  if(zip) html+=`<div><span class="f">&nbsp;&nbsp;└─ </span><span class="n">${esc(zip)}</span></div>`;
+  tree.innerHTML=html;
+  if(zip){ const a=$("#dlZip"); a.style.display="inline-flex"; a.href=`/api/export/${encodeURIComponent(STATE.week)}/download`; }
+}
+async function runExport(btn, all){
+  btn.disabled=true; const orig=btn.textContent; btn.textContent="Building…";
+  const stages=[...$("#stages").querySelectorAll(".stage")];
+  let tick=0; const anim=setInterval(()=>{ if(tick<stages.length){ if(tick>0){stages[tick-1].classList.replace("run","done");stages[tick-1].querySelector(".dot").textContent="✓";} stages[tick].classList.add("run"); tick++; } },500);
+  try{
+    const res = all ? await API.post(`/api/export-all?week=${encodeURIComponent(STATE.week)}`)
+                    : await API.post(`/api/export?crop=${STATE.crop}&week=${encodeURIComponent(STATE.week)}`);
+    clearInterval(anim);
+    stages.forEach(s=>{s.classList.remove("run");s.classList.add(res.errors.length?"":"done");if(!res.errors.length)s.querySelector(".dot").textContent="✓";});
+    renderManifest(res);
+    if(res.errors.length) toast(`Export had ${res.errors.length} error(s) — see manifest`, true);
+    else toast(`${res.zip_name||"package"} ready`);
+  }catch(e){ clearInterval(anim); toast("Export failed: "+e.message, true); }
+  btn.disabled=false; btn.textContent=orig;
+}
+
+// ============================================================
+//  ROUTER + EVENT WIRING
+// ============================================================
+async function render(){
+  renderCtx(); renderNav();
+  const v=$("#view"); v.innerHTML=`<div class="loading">Loading…</div>`;
+  try{
+    let html;
+    if(STATE.view==="overview") html=await viewOverview();
+    else if(STATE.view==="survey") html=await viewSurvey();
+    else if(STATE.view==="lab") html=await viewLab();
+    else if(STATE.view==="obs") html=await viewObs();
+    else html=viewExport();
+    v.innerHTML=html;
+    wire();
+  }catch(e){ v.innerHTML=`<div class="loading">⚠ ${esc(e.message)}</div>`; }
+}
+
+function wireUpload(commitHandler){
+  const drop=$("#drop"), file=$("#file");
+  if(drop&&file){
+    drop.onclick=()=>file.click();
+    drop.ondragover=e=>{e.preventDefault();drop.classList.add("hot");};
+    drop.ondragleave=()=>drop.classList.remove("hot");
+    drop.ondrop=e=>{e.preventDefault();drop.classList.remove("hot");if(e.dataTransfer.files[0])doUpload(e.dataTransfer.files[0]);};
+    file.onchange=()=>{ if(file.files[0]) doUpload(file.files[0]); };
+  }
+  async function doUpload(f){
+    const fd=new FormData(); fd.append("crop",STATE.crop); fd.append("file",f);
+    toast(`Uploading ${f.name}…`);
+    try{
+      const preview=await API.upload("/api/import/upload",fd);
+      const slot=STATE.view==="survey"?"survey":"lab";
+      STATE[slot]={token:preview.token,filename:preview.filename||f.name,preview,committed:false};
+      render();
+    }catch(e){ toast("Upload failed: "+e.message,true); }
+  }
+}
+
+function wire(){
+  if(STATE.view==="overview"){
+    $("#view").querySelectorAll(".pt").forEach(c=>c.onclick=()=>{STATE.activePt=c.dataset.pt;STATE.view="obs";render();});
+  }
+  if(STATE.view==="survey"){
+    wireUpload();
+    const idsel=$("#idCol"); if(idsel) idsel.onchange=()=>{STATE.survey.idCol=idsel.value;};
+    const c=$("#commit"); if(c) c.onclick=async()=>{
+      c.disabled=true;
+      try{
+        const res=await API.post("/api/import/survey",{token:STATE.survey.token,crop:STATE.crop,week:STATE.week,id_col:STATE.survey.idCol||pickIdColumn(STATE.survey.preview)});
+        STATE.survey.committed=true; STATE.overview=null;
+        toast(`Imported ${res.imported} · skipped ${res.skipped_no_loc} no-match, ${res.skipped_empty} empty${res.photos_copied?` · ${res.photos_copied} photos`:""}`);
+      }catch(e){ toast("Import failed: "+e.message,true); }
+      c.disabled=false;
+    };
+  }
+  if(STATE.view==="lab"){
+    wireUpload();
+    $("#view").querySelectorAll("select[data-row]").forEach(sel=>sel.onchange=()=>{
+      const i=sel.dataset.row; if(sel.value) STATE.lab.targets[i]=sel.value; else delete STATE.lab.targets[i];
+      const n=Object.values(STATE.lab.targets).filter(Boolean).length;
+      const b=$("#assignBadge"); if(b) b.textContent=`${n} assigned`;
+      const cb=$("#commit"); if(cb) cb.textContent=`Commit ${n} rows → obs_${STATE.crop}`;
+    });
+    const c=$("#commit"); if(c) c.onclick=async()=>{
+      c.disabled=true;
+      try{
+        const res=await API.post("/api/import/lab",{token:STATE.lab.token,crop:STATE.crop,week:STATE.week,row_targets:STATE.lab.targets});
+        STATE.lab.committed=true; STATE.overview=null;
+        toast(`Imported ${res.imported} · skipped ${res.skipped_no_target} unassigned, ${res.skipped_empty} empty`);
+      }catch(e){ toast(e.message,true); }
+      c.disabled=false;
+    };
+  }
+  if(STATE.view==="obs"){
+    $("#view").querySelectorAll(".ptrail button").forEach(b=>b.onclick=()=>{STATE.activePt=b.dataset.pt;render();});
+    $("#view").querySelectorAll(".subtabs button").forEach(b=>b.onclick=()=>{STATE.obsTab=b.dataset.tab;render();});
+    const sv=$("#obsSave"); if(sv) sv.onclick=()=>saveObs().catch(e=>toast("Save failed: "+e.message,true));
+    const rl=$("#obsReload"); if(rl) rl.onclick=()=>render();
+    const add=$("#addPhoto"), pf=$("#photoFile");
+    if(add&&pf){ add.onclick=()=>pf.click(); pf.onchange=async()=>{
+      if(!pf.files[0]) return;
+      const fd=new FormData(); fd.append("crop",STATE.crop);fd.append("week",STATE.week);fd.append("loc",STATE.activePt);fd.append("file",pf.files[0]);
+      try{ await API.upload("/api/images",fd); toast("Photo attached"); render(); }
+      catch(e){ toast("Attach failed: "+e.message,true); }
+    };}
+  }
+  if(STATE.view==="export"){
+    const r=$("#runExport"); if(r) r.onclick=()=>runExport(r,false);
+    const ra=$("#runExportAll"); if(ra) ra.onclick=()=>runExport(ra,true);
+  }
+}
+
+// ---------- boot ----------
+const boot = {
+  async loadWeeks(){ const w=await API.get("/api/weeks"); STATE.weeks=w.weeks.map(r=>r.iso_week); STATE.current=w.current; },
+  refreshAndRender(){ STATE.overview=null; render(); },
+  async init(){
+    STATE.crops=await API.get("/api/crops");
+    STATE.crop=STATE.crops[0]?.code||null;
+    await this.loadWeeks();
+    STATE.week=STATE.weeks.includes(STATE.current)?STATE.current:(STATE.weeks[0]||null);
+    render();
+  },
+};
+boot.init().catch(e=>{ $("#view").innerHTML=`<div class="loading">⚠ Could not reach the Magpie API: ${esc(e.message)}</div>`; });
+</script>
+</body>
+</html>
