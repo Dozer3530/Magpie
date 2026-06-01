@@ -81,6 +81,12 @@ browser pops up once the app is ready; close that window to stop Magpie.
 Either way, first launch auto-creates the current ISO week and seeds the
 database with the locations + growth stages defined in `app/crops.py`.
 
+**Backups.** `packages.sqlite` is the single source of truth (and git-ignored),
+so back it up once it holds real weeks: double-click `backup.bat`, hit **Back up
+data** in either frontend, or run `python -m app.services.maintenance`. Each
+writes a timestamped, WAL-consistent snapshot to `data/backups/` — a normal
+SQLite file you can open directly or swap back in for `data/packages.sqlite`.
+
 ## Two frontends, one core
 
 The whole point of the architecture is that a feature, bug fix, or template

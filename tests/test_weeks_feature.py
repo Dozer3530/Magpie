@@ -100,6 +100,32 @@ def test_rename_week_noop_same_name(isolated_db):
 
 # ---- all_weeks_progress ----------------------------------------------------
 
+def test_create_backup_is_a_valid_consistent_copy(isolated_db, canola, tmp_path):
+    import sqlite3
+
+    from app.services import maintenance
+
+    weeks_service.create_week("2026-W22")
+    n_name = _name(canola, "N")
+    obs_service.save("canola", "2026-W22", "M1", {n_name: "9.9"})
+
+    dest_dir = tmp_path / "bk"
+    backup = maintenance.create_backup(dest_dir=dest_dir)
+    assert backup.exists() and backup.parent == dest_dir
+    assert maintenance.list_backups(dest_dir) == [backup]
+
+    # The snapshot is a normal SQLite DB carrying the just-saved value.
+    conn = sqlite3.connect(backup)
+    try:
+        row = conn.execute(
+            'SELECT "' + n_name + '" FROM obs_canola WHERE iso_week=? AND location_id=?',
+            ("2026-W22", "M1"),
+        ).fetchone()
+    finally:
+        conn.close()
+    assert row[0] == "9.9"
+
+
 def test_all_weeks_progress_two_tracks(isolated_db, canola):
     weeks_service.create_week("2026-W22")
     n_name = _name(canola, "N")          # lab column

@@ -33,6 +33,7 @@ service — both columns inherit it for free.
 | List a location's photos | `image_storage.list_existing` | image widget | `GET /api/images` |
 | Serve a photo | `image_storage.absolute_path` | image widget | `GET /api/images/file` |
 | Attach a photo | `image_storage.attach` | image widget | `POST /api/images` |
+| Back up the database | `maintenance.create_backup` (→ `db.backup_database`) | "Back up data" button + `backup.bat` | `POST /api/backup` |
 
 ## Known, accepted differences (UX only — never output)
 

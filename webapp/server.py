@@ -24,6 +24,7 @@ from app.crops import CROPS
 from app.db import init_db
 from app.services import exports as exports_service
 from app.services import imports as imports_service
+from app.services import maintenance as maintenance_service
 from app.services import observations as obs_service
 from app.services import weeks as weeks_service
 from app.services.imports import DuplicateTargetError
@@ -103,6 +104,13 @@ def post_week_rename(body: WeekRename) -> dict:
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return {"ok": True, "tag": new_tag}
+
+
+@app.post("/api/backup")
+def post_backup() -> dict:
+    """Write a timestamped, consistent snapshot of packages.sqlite."""
+    dest = maintenance_service.create_backup()
+    return {"ok": True, "name": dest.name, "path": str(dest)}
 
 
 # ---- Overview --------------------------------------------------------------

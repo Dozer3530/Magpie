@@ -133,6 +133,15 @@ def test_week_rename_bad_name_400(client):
     assert res.status_code == 400
 
 
+def test_backup_route(client, isolated_db):
+    res = client.post("/api/backup")
+    assert res.status_code == 200
+    body = res.json()
+    assert body["ok"] and body["name"].startswith("packages_")
+    # the backup file actually exists under the isolated data dir
+    assert (isolated_db / "backups" / body["name"]).exists()
+
+
 # ---- Import flow (upload -> commit) ----------------------------------------
 
 def test_survey_import_upload_then_commit(client, canola):

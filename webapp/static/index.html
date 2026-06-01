@@ -524,6 +524,7 @@ async function viewWeeks(){
     <p>Every week with its <b>Field</b> (Survey123) and <b>Lab</b> (PT2R) completeness side by side — counted as monitoring points with data, ${STATE.crop?`for each crop`:""}. Field obs land first each week; the Lab bar fills in as results come back. Rename a week to whatever you call it (the code is also used in export filenames).</p></div>
   <div class="actions rise" style="margin:0 0 8px">
     <button class="btn" id="newWeekDash">+ New week</button>
+    <button class="btn ghost" id="backupBtn">↧ Back up data</button>
     <span class="note">creates the current ISO week${STATE.current?` · ${STATE.current}`:""}</span>
   </div>
   ${cards}`;
@@ -966,6 +967,12 @@ function wire(){
       if(STATE.weeks.includes(current)){ STATE.week=current; toast(`Week ${current} already exists — selected it`); }
       else { await API.post("/api/weeks",{tag:current}); toast(`Created week ${current}`); }
       await boot.loadWeeks(); STATE.week=current; STATE.overview=null; render();
+    };
+    const bk=$("#backupBtn"); if(bk) bk.onclick=async()=>{
+      bk.disabled=true;
+      try{ const r=await API.post("/api/backup"); toast(`Backup saved · ${r.name}`); }
+      catch(e){ toast("Backup failed: "+e.message,true); }
+      bk.disabled=false;
     };
     $("#view").querySelectorAll(".wkcard").forEach(card=>{
       const wk=card.dataset.week;

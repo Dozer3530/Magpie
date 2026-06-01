@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.db import connect, list_crops
+from app.services import maintenance as maintenance_service
 from app.services import weeks as weeks_service
 from app.ui.export_tab import ExportTab
 from app.ui.lab_import_tab import LabImportTab
@@ -98,6 +99,11 @@ class MainWindow(QMainWindow):
         row.addWidget(delete_week_btn)
 
         row.addStretch(1)
+
+        backup_btn = QPushButton("Back up data", self)
+        backup_btn.setToolTip("Write a timestamped snapshot of packages.sqlite to data/backups/")
+        backup_btn.clicked.connect(self._on_backup_clicked)
+        row.addWidget(backup_btn)
         return row
 
     def _populate_crop_combo(self) -> None:
@@ -182,6 +188,16 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "Rename failed", str(exc))
             return
         self.refresh_weeks(prefer=new_tag)
+
+    def _on_backup_clicked(self) -> None:
+        try:
+            dest = maintenance_service.create_backup()
+        except Exception as exc:
+            QMessageBox.critical(self, "Backup failed", str(exc))
+            return
+        QMessageBox.information(
+            self, "Backup complete", f"Snapshot written to:\n{dest}"
+        )
 
     def _on_context_changed(self) -> None:
         self.context_changed.emit()

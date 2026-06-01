@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import sqlite3
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Iterator
 
 from app.config import DB_PATH, ensure_app_dirs
@@ -57,6 +58,27 @@ def connect() -> Iterator[sqlite3.Connection]:
         raise
     finally:
         conn.close()
+
+
+def backup_database(dest: Path) -> None:
+    """Write a consistent snapshot of the live DB to `dest`.
+
+    Uses SQLite's online backup API rather than a file copy, so the snapshot is
+    transaction-consistent and folds in any pending WAL pages — copying just the
+    `.sqlite` file while a WAL exists can miss the most recent writes. `dest`'s
+    parent must already exist.
+    """
+    ensure_app_dirs()
+    src = sqlite3.connect(DB_PATH)
+    try:
+        dst = sqlite3.connect(dest)
+        try:
+            with dst:
+                src.backup(dst)
+        finally:
+            dst.close()
+    finally:
+        src.close()
 
 
 # ---- Schema -----------------------------------------------------------------
