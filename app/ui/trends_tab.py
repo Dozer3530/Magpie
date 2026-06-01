@@ -1,10 +1,11 @@
-"""Week-over-week soil trends — desktop mirror of the web Trends view.
+"""Week-over-week trends — desktop mirror of the web Trends view.
 
-Same fixed points every week, so this shows the TDR soil readings (temp,
-moisture, EC) changing over time — either the field average or one point.
-Reads everything from `app.services.trends`, so it stays in lockstep with the
-web Trends screen (the web additionally draws line charts; here it's a
-values+delta table, an accepted presentation difference).
+Same fixed points every week, so this shows how readings change over time —
+choose a metric category (soil / disease & growth / nutrients / ratios) and a
+scope (field average or one point). Reads everything from
+`app.services.trends`, so it stays in lockstep with the web Trends screen (the
+web additionally draws line charts; here it's a values+delta table — an
+accepted presentation difference).
 """
 from __future__ import annotations
 
@@ -23,7 +24,6 @@ from PySide6.QtWidgets import (
 
 from app.services import trends as trends_service
 
-_METRIC_ORDER = ["temp", "moisture", "ec"]
 _UP = QColor("#5a8a00")    # readable lime on light Qt
 _DOWN = QColor("#2f56cc")  # blue
 
@@ -41,30 +41,38 @@ class TrendsTab(QWidget):
         outer.addWidget(self.header)
 
         controls = QHBoxLayout()
+        controls.addWidget(QLabel("Show:"))
+        self.category = QComboBox(self)
+        for key, label in [
+            ("soil", "Soil readings"),
+            ("disease_growth", "Disease & growth"),
+            ("nutrients", "Nutrient values"),
+            ("ratios", "Nutrient ratios"),
+        ]:
+            self.category.addItem(label, key)
+        self.category.currentIndexChanged.connect(self._refill)
+        controls.addWidget(self.category)
+
+        controls.addSpacing(16)
         controls.addWidget(QLabel("Scope:"))
         self.scope = QComboBox(self)
-        self.scope.setMinimumWidth(220)
+        self.scope.setMinimumWidth(200)
         self.scope.currentIndexChanged.connect(self._refill)
         controls.addWidget(self.scope)
         controls.addStretch(1)
         outer.addLayout(controls)
 
-        self.table = QTableWidget(0, 4, self)
-        self.table.setHorizontalHeaderLabels(
-            ["Week", "Soil temp °C", "Soil moisture %", "Soil EC dS/m"]
-        )
+        self.table = QTableWidget(0, 1, self)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.table.setSelectionMode(QTableWidget.NoSelection)
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table.verticalHeader().setVisible(False)
         outer.addWidget(self.table, 1)
 
         main_window.context_changed.connect(self._on_context)
         self._on_context()
 
-    # Rebuild the scope dropdown when the crop changes (locations differ), then
-    # refill the table.
     def _on_context(self) -> None:
+        """Rebuild the scope dropdown when the crop changes, then refill."""
         crop = self._main.current_crop_code()
         prev = self.scope.currentData()
         self.scope.blockSignals(True)
@@ -72,8 +80,7 @@ class TrendsTab(QWidget):
         self.scope.addItem("Field average (all points)", "")
         if crop:
             try:
-                data = trends_service.soil_trends(crop, None)
-                for loc in data["locations"]:
+                for loc in trends_service.trend_series(crop, None, "soil")["locations"]:
                     self.scope.addItem(loc, loc)
             except Exception:
                 pass
@@ -86,30 +93,35 @@ class TrendsTab(QWidget):
         crop = self._main.current_crop_code()
         if not crop:
             self.table.setRowCount(0)
+            self.table.setColumnCount(1)
             return
         loc = self.scope.currentData() or None
-        data = trends_service.soil_trends(crop, loc)
-        weeks = data["weeks"]
-        series = data["series"]
+        category = self.category.currentData() or "soil"
+        data = trends_service.trend_series(crop, loc, category)
+        weeks, series = data["weeks"], data["series"]
 
-        # newest week first
-        order = list(range(len(weeks)))[::-1]
+        headers = ["Week"] + [s["label"] + (f" {s['unit']}" if s["unit"] else "") for s in series]
+        self.table.setColumnCount(len(headers))
+        self.table.setHorizontalHeaderLabels(headers)
+        mode = QHeaderView.Stretch if len(headers) <= 4 else QHeaderView.ResizeToContents
+        self.table.horizontalHeader().setSectionResizeMode(mode)
+
+        order = list(range(len(weeks)))[::-1]  # newest first
         self.table.setRowCount(len(order))
         for r, i in enumerate(order):
             self.table.setItem(r, 0, QTableWidgetItem(weeks[i]))
-            for c, mkey in enumerate(_METRIC_ORDER, start=1):
-                pts = series[mkey]["points"]
+            for c, s in enumerate(series, start=1):
+                pts = s["points"]
                 v = pts[i]
                 prev = next((pts[j] for j in range(i - 1, -1, -1) if pts[j] is not None), None)
                 item = QTableWidgetItem(self._cell_text(v, prev))
                 item.setTextAlignment(Qt.AlignCenter)
-                if v is not None and prev is not None:
-                    if v > prev:
-                        item.setForeground(_UP)
-                    elif v < prev:
-                        item.setForeground(_DOWN)
                 if v is None:
                     item.setForeground(Qt.gray)
+                elif prev is not None and v > prev:
+                    item.setForeground(_UP)
+                elif prev is not None and v < prev:
+                    item.setForeground(_DOWN)
                 self.table.setItem(r, c, item)
 
     @staticmethod

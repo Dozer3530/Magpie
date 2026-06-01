@@ -126,6 +126,10 @@ def test_create_backup_is_a_valid_consistent_copy(isolated_db, canola, tmp_path)
     assert row[0] == "9.9"
 
 
+def _ser(result, key):
+    return next(s for s in result["series"] if s["key"] == key)
+
+
 def test_soil_trends_field_avg_and_per_point(isolated_db, canola):
     from app.services import trends
 
@@ -139,17 +143,42 @@ def test_soil_trends_field_avg_and_per_point(isolated_db, canola):
     # Week 22: M1 mean 18
     obs_service.save("canola", "2026-W22", "M1", {t1: "16", t2: "20"})
 
-    field = trends.soil_trends("canola")
-    # weeks are chronological (W21 created first)
-    assert field["weeks"] == ["2026-W21", "2026-W22"]
-    assert field["series"]["temp"]["points"] == [20.0, 18.0]
+    field = trends.trend_series("canola", None, "soil")
+    assert field["weeks"] == ["2026-W21", "2026-W22"]  # chronological
+    assert _ser(field, "temp")["points"] == [20.0, 18.0]
 
-    m1 = trends.soil_trends("canola", "M1")
+    m1 = trends.trend_series("canola", "M1", "soil")
     assert m1["scope"] == "M1"
-    assert m1["series"]["temp"]["points"] == [15.0, 18.0]
-    # M2 only reported in week 21
-    m2 = trends.soil_trends("canola", "M2")
-    assert m2["series"]["temp"]["points"] == [25.0, None]
+    assert _ser(m1, "temp")["points"] == [15.0, 18.0]
+    m2 = trends.trend_series("canola", "M2", "soil")
+    assert _ser(m2, "temp")["points"] == [25.0, None]  # M2 only reported W21
+
+
+def test_disease_trend_sums_flags_across_field(isolated_db, canola):
+    from app.services import trends
+
+    weeks_service.create_week("2026-W22")
+    # M1: two diseases flagged; M2: one. Field total = 3 flags.
+    obs_service.save("canola", "2026-W22", "M1",
+                     {"Disease_Blackleg": "yes", "Disease_Clubroot": "yes"})
+    obs_service.save("canola", "2026-W22", "M2", {"Disease_Blackleg": "yes"})
+
+    field = trends.trend_series("canola", None, "disease_growth")
+    assert _ser(field, "disease")["points"] == [3.0]
+    # per-point M1 sees its own two flags
+    m1 = trends.trend_series("canola", "M1", "disease_growth")
+    assert _ser(m1, "disease")["points"] == [2.0]
+
+
+def test_trend_categories_listed(isolated_db, canola):
+    from app.services import trends
+
+    weeks_service.create_week("2026-W22")
+    res = trends.trend_series("canola", None, "nutrients")
+    assert res["category"] == "nutrients"
+    assert {c["key"] for c in res["categories"]} == {"soil", "disease_growth", "nutrients", "ratios"}
+    # nutrient series include N (a bare lab value)
+    assert any(s["key"] == "N" for s in res["series"])
 
 
 def test_all_weeks_progress_two_tracks(isolated_db, canola):

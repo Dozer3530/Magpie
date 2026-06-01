@@ -425,7 +425,7 @@ const NAV = [
 
 const STATE = {
   crops:[], crop:null, weeks:[], week:null, view:"weeks",
-  schemaCache:{}, overview:null, trendLoc:"",
+  schemaCache:{}, overview:null, trendLoc:"", trendCat:"soil",
   activePt:null, obsTab:"field", obsValues:{}, obsImages:[],
   survey:null,   // {token, filename, preview}
   lab:null,      // {token, filename, preview, targets:{idx:loc}}
@@ -548,7 +548,7 @@ async function viewWeeks(){
 // ============================================================
 //  VIEW 07 — TRENDS (week over week)
 // ============================================================
-const TREND_COLORS = { temp:"var(--lime)", moisture:"var(--blue)", ec:"var(--ink)" };
+const TREND_PALETTE = ["var(--lime)","var(--blue)","var(--ink)","var(--red)"];
 function trendChart(series, color){
   const pts = series.points, n = pts.length;
   const vals = pts.filter(v=>v!=null);
@@ -583,46 +583,50 @@ function lastTwo(points){
   return [last, prev];
 }
 async function viewTrends(){
-  const loc = STATE.trendLoc;
-  const t = await API.get(`/api/trends?crop=${STATE.crop}${loc?`&loc=${encodeURIComponent(loc)}`:""}`);
-  STATE._trendWeeks = t.weeks;
-  const order = ["temp","moisture","ec"];
-  const opts = [`<option value="">Field average (all points)</option>`]
+  const loc = STATE.trendLoc, cat = STATE.trendCat || "soil";
+  const t = await API.get(`/api/trends?crop=${STATE.crop}&cat=${cat}${loc?`&loc=${encodeURIComponent(loc)}`:""}`);
+  const series = t.series;
+
+  const catOpts = t.categories.map(c=>`<option value="${c.key}" ${c.key===t.category?"selected":""}>${esc(c.label)}</option>`).join("");
+  const scopeOpts = [`<option value="">Field average (all points)</option>`]
     .concat(t.locations.map(l=>`<option value="${esc(l)}" ${l===loc?"selected":""}>${esc(l)}</option>`)).join("");
 
-  const cards = order.map(k=>{
-    const s=t.series[k]; const [last,prev]=lastTwo(s.points);
+  const cards = series.length ? series.map((s,i)=>{
+    const [last,prev]=lastTwo(s.points);
     const lastTxt = last==null ? "—" : last;
     return `<div class="trend-card">
       <div class="th"><h3>${esc(s.label)}</h3>
         <span class="last">${lastTxt}<span class="u">${esc(s.unit)}</span>${deltaSpan(last,prev)}</span></div>
-      ${trendChart(s, TREND_COLORS[k])}</div>`;
-  }).join("");
+      ${trendChart(s, TREND_PALETTE[i%TREND_PALETTE.length])}</div>`;
+  }).join("") : `<div class="trend-empty">No metrics in this category for ${cap(STATE.crop)}.</div>`;
 
-  // delta table: one row per week (newest first), columns = the 3 metrics
-  const rows = t.weeks.map((wk,i)=>{
-    const cells = order.map(k=>{
-      const v=t.series[k].points[i];
-      // previous non-null before i
-      let prev=null; for(let j=i-1;j>=0;j--){ if(t.series[k].points[j]!=null){ prev=t.series[k].points[j]; break; } }
-      return `<td>${v==null?'<span style="color:var(--ink-faint)">—</span>':v} ${deltaSpan(v,prev)}</td>`;
-    }).join("");
-    return `<tr><td>${esc(wk)}</td>${cells}</tr>`;
-  }).reverse().join("");
+  // delta table only when it stays readable (≤6 series); charts cover the rest.
+  let table = "";
+  if(t.weeks.length && series.length && series.length<=6){
+    const head = series.map(s=>`<th>${esc(s.label)}${s.unit?` ${esc(s.unit)}`:""}</th>`).join("");
+    const rows = t.weeks.map((wk,i)=>{
+      const cells = series.map(s=>{
+        const v=s.points[i];
+        let prev=null; for(let j=i-1;j>=0;j--){ if(s.points[j]!=null){ prev=s.points[j]; break; } }
+        return `<td>${v==null?'<span style="color:var(--ink-faint)">—</span>':v} ${deltaSpan(v,prev)}</td>`;
+      }).join("");
+      return `<tr><td>${esc(wk)}</td>${cells}</tr>`;
+    }).reverse().join("");
+    table = `<div class="section-title rise"><span class="idx">07·A</span><h2>By week</h2><span class="rule"></span></div>
+      <div class="panel rise"><div class="pbody"><table class="data">
+        <thead><tr><th>Week</th>${head}</tr></thead><tbody>${rows}</tbody></table></div></div>`;
+  }
 
   const scopeLabel = loc ? `point <b>${esc(loc)}</b>` : `the <b>field average</b>`;
   return `
   <div class="vhead rise"><div class="step" style="background:var(--lime);color:#000">Analysis · Week over week</div><h1>Trends</h1>
-    <p>Soil readings over time for <b>${cap(STATE.crop)}</b> — ${scopeLabel}. Each point is the mean of that location's three TDR sensors; the field average is the mean across all points. Lab metrics can be added later.</p></div>
+    <p>How <b>${cap(STATE.crop)}</b> moves week to week — ${scopeLabel}. Pick a metric category; per-point values are that location's reading, the field view aggregates across all points each week (disease = total flags, the rest = average).</p></div>
   <div class="trend-controls rise" style="animation-delay:.05s">
-    <label>Scope</label>
-    <select id="trendScope">${opts}</select>
+    <label>Show</label><select id="trendCat">${catOpts}</select>
+    <label>Scope</label><select id="trendScope">${scopeOpts}</select>
   </div>
   <div class="trend-grid rise" style="animation-delay:.08s">${cards}</div>
-  ${t.weeks.length ? `<div class="section-title rise"><span class="idx">07·A</span><h2>By week</h2><span class="rule"></span></div>
-  <div class="panel rise"><div class="pbody"><table class="data">
-    <thead><tr><th>Week</th><th>Soil temp °C</th><th>Soil moisture %</th><th>Soil EC dS/m</th></tr></thead>
-    <tbody>${rows}</tbody></table></div></div>` : ""}`;
+  ${table}`;
 }
 
 // ============================================================
@@ -1088,6 +1092,7 @@ function wire(){
   }
   if(STATE.view==="trends"){
     const sc=$("#trendScope"); if(sc) sc.onchange=()=>{ STATE.trendLoc=sc.value; render(); };
+    const ct=$("#trendCat"); if(ct) ct.onchange=()=>{ STATE.trendCat=ct.value; render(); };
   }
   if(STATE.view==="overview"){
     $("#view").querySelectorAll(".pt").forEach(c=>c.onclick=()=>{STATE.activePt=c.dataset.pt;STATE.view="obs";render();});

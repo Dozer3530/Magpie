@@ -123,9 +123,9 @@ def get_overview(crop: str, week: str) -> dict:
 
 
 @app.get("/api/trends")
-def get_trends(crop: str, loc: str | None = None) -> dict:
-    """Week-over-week soil readings (field average, or one point if `loc`)."""
-    return trends_service.soil_trends(crop, loc or None)
+def get_trends(crop: str, loc: str | None = None, cat: str = "soil") -> dict:
+    """Week-over-week trends for a metric category (field average, or one point)."""
+    return trends_service.trend_series(crop, loc or None, cat)
 
 
 # ---- Observations ----------------------------------------------------------

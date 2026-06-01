@@ -34,7 +34,7 @@ service — both columns inherit it for free.
 | Serve a photo | `image_storage.absolute_path` | image widget | `GET /api/images/file` |
 | Attach a photo | `image_storage.attach` | image widget | `POST /api/images` |
 | Back up the database | `maintenance.create_backup` (→ `db.backup_database`) | "Back up data" button + `backup.bat` | `POST /api/backup` |
-| Week-over-week soil trends | `trends.soil_trends` (field avg or per-point) | Trends tab (`app/ui/trends_tab.py`, values+delta table) | `GET /api/trends` (SVG charts + table) |
+| Week-over-week trends (soil / disease+growth / nutrients / ratios) | `trends.trend_series` (category, field avg or per-point) | Trends tab (`app/ui/trends_tab.py`, category combo + delta table) | `GET /api/trends?cat=` (category select + SVG charts) |
 
 ## Known, accepted differences (UX only — never output)
 
