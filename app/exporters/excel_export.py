@@ -14,6 +14,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import openpyxl
+from openpyxl.utils import get_column_letter
 
 from app import image_storage
 from app.crops import CropConfig, crop_by_code
@@ -103,8 +104,33 @@ def export_excel(crop_code: str, iso_week: str, out_path: Path) -> Path:
             if value is not None:
                 ws.cell(row=r, column=col, value=value)
 
+    _autofit_columns(ws)
+
     wb.save(out_path)
     return out_path
+
+
+def _autofit_columns(ws, max_width: int = 48, padding: int = 2) -> None:
+    """Size every column to its widest cell — what you'd get by selecting all
+    columns and double-clicking a divider in Excel — so long headers like
+    `TDR_1_SOIL_TEMPERATURE (°C)` aren't smooshed on open. Width is capped so a
+    stray long value can't blow a column out to the whole screen.
+    """
+    for col in range(1, ws.max_column + 1):
+        longest = 0
+        for row in range(1, ws.max_row + 1):
+            value = ws.cell(row=row, column=col).value
+            if value is None:
+                continue
+            text = str(value)
+            if text.startswith("="):
+                # HYPERLINK formula: measure the visible label, not the formula.
+                # =HYPERLINK("target","LABEL")  ->  LABEL
+                if '","' in text:
+                    text = text.rsplit('","', 1)[-1].rstrip('")')
+            longest = max(longest, len(text))
+        if longest:
+            ws.column_dimensions[get_column_letter(col)].width = min(longest + padding, max_width)
 
 
 def export_filename(crop_code: str, iso_week: str) -> str:
