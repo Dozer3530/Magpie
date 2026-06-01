@@ -26,6 +26,7 @@ from app.services import exports as exports_service
 from app.services import imports as imports_service
 from app.services import maintenance as maintenance_service
 from app.services import observations as obs_service
+from app.services import trends as trends_service
 from app.services import weeks as weeks_service
 from app.services.imports import DuplicateTargetError
 from webapp import serialize
@@ -119,6 +120,12 @@ def post_backup() -> dict:
 def get_overview(crop: str, week: str) -> dict:
     status = exports_service.week_status(crop, week)
     return serialize.week_status_dict(status)
+
+
+@app.get("/api/trends")
+def get_trends(crop: str, loc: str | None = None) -> dict:
+    """Week-over-week soil readings (field average, or one point if `loc`)."""
+    return trends_service.soil_trends(crop, loc or None)
 
 
 # ---- Observations ----------------------------------------------------------

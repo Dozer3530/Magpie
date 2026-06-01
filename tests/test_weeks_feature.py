@@ -126,6 +126,32 @@ def test_create_backup_is_a_valid_consistent_copy(isolated_db, canola, tmp_path)
     assert row[0] == "9.9"
 
 
+def test_soil_trends_field_avg_and_per_point(isolated_db, canola):
+    from app.services import trends
+
+    t1 = _name(canola, "TDR_1_SOIL_TEMPERATURE")
+    t2 = _name(canola, "TDR_2_SOIL_TEMPERATURE")
+    weeks_service.create_week("2026-W21")
+    weeks_service.create_week("2026-W22")
+    # Week 21: M1 sensors 10 & 20 (mean 15); M2 sensor 25 (mean 25) -> field avg 20
+    obs_service.save("canola", "2026-W21", "M1", {t1: "10", t2: "20"})
+    obs_service.save("canola", "2026-W21", "M2", {t1: "25"})
+    # Week 22: M1 mean 18
+    obs_service.save("canola", "2026-W22", "M1", {t1: "16", t2: "20"})
+
+    field = trends.soil_trends("canola")
+    # weeks are chronological (W21 created first)
+    assert field["weeks"] == ["2026-W21", "2026-W22"]
+    assert field["series"]["temp"]["points"] == [20.0, 18.0]
+
+    m1 = trends.soil_trends("canola", "M1")
+    assert m1["scope"] == "M1"
+    assert m1["series"]["temp"]["points"] == [15.0, 18.0]
+    # M2 only reported in week 21
+    m2 = trends.soil_trends("canola", "M2")
+    assert m2["series"]["temp"]["points"] == [25.0, None]
+
+
 def test_all_weeks_progress_two_tracks(isolated_db, canola):
     weeks_service.create_week("2026-W22")
     n_name = _name(canola, "N")          # lab column

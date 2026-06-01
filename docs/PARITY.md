@@ -34,6 +34,7 @@ service — both columns inherit it for free.
 | Serve a photo | `image_storage.absolute_path` | image widget | `GET /api/images/file` |
 | Attach a photo | `image_storage.attach` | image widget | `POST /api/images` |
 | Back up the database | `maintenance.create_backup` (→ `db.backup_database`) | "Back up data" button + `backup.bat` | `POST /api/backup` |
+| Week-over-week soil trends | `trends.soil_trends` (field avg or per-point) | Trends tab (`app/ui/trends_tab.py`, values+delta table) | `GET /api/trends` (SVG charts + table) |
 
 ## Known, accepted differences (UX only — never output)
 
@@ -46,6 +47,8 @@ service — both columns inherit it for free.
   `commit_*` calls, same result.
 - **Progress display.** Desktop shows Qt progress; web animates stages in JS.
   Cosmetic only — both call the one export service and write the same files.
+- **Trend visualization.** Web draws SVG line charts; desktop shows a
+  values + delta-arrow table. Same `trends.soil_trends` data behind both.
 
 ## The automated guarantee
 

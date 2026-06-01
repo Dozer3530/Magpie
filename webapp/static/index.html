@@ -197,6 +197,20 @@
     font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);margin-bottom:6px}
   .wk-bar .lab-mt b{color:var(--ink)}
 
+  /* ============ TRENDS ============ */
+  .trend-controls{display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap}
+  .trend-controls label{font-family:"Space Mono",monospace;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft)}
+  .trend-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;margin-bottom:24px}
+  .trend-card{border:var(--bd) solid var(--line);background:var(--panel);padding:16px 18px}
+  .trend-card .th{display:flex;align-items:baseline;gap:10px;margin-bottom:8px}
+  .trend-card .th h3{font-family:"Archivo",sans-serif;font-weight:900;font-size:15px;text-transform:uppercase;letter-spacing:-.01em}
+  .trend-card .th .last{margin-left:auto;font-family:"Archivo",sans-serif;font-weight:900;font-size:22px;letter-spacing:-.02em}
+  .trend-card .th .last .u{font-family:"Space Mono",monospace;font-size:10px;font-weight:700;color:var(--ink-faint);margin-left:3px}
+  .trend-card .th .last .d{font-family:"Space Mono",monospace;font-size:12px;font-weight:700;margin-left:8px}
+  .trend-card svg{width:100%;height:150px;display:block}
+  .trend-empty{font-family:"Space Mono",monospace;font-size:12px;font-weight:700;color:var(--ink-faint);padding:34px 0;text-align:center}
+  .d-up{color:var(--lime)} .d-dn{color:var(--blue)} .d-flat{color:var(--ink-faint)}
+
   /* ============ IMPORT VIEWS ============ */
   .dropzone{border:var(--bd) dashed var(--line);background:var(--panel);
     padding:46px 32px;text-align:center;transition:.12s;cursor:pointer;position:relative;overflow:hidden}
@@ -406,11 +420,12 @@ const NAV = [
   {id:"lab",      n:"04", l:"Lab import"},
   {id:"obs",      n:"05", l:"Observations"},
   {id:"export",   n:"06", l:"Export"},
+  {id:"trends",   n:"07", l:"Trends"},
 ];
 
 const STATE = {
   crops:[], crop:null, weeks:[], week:null, view:"weeks",
-  schemaCache:{}, overview:null,
+  schemaCache:{}, overview:null, trendLoc:"",
   activePt:null, obsTab:"field", obsValues:{}, obsImages:[],
   survey:null,   // {token, filename, preview}
   lab:null,      // {token, filename, preview, targets:{idx:loc}}
@@ -528,6 +543,86 @@ async function viewWeeks(){
     <span class="note">creates the current ISO week${STATE.current?` · ${STATE.current}`:""}</span>
   </div>
   ${cards}`;
+}
+
+// ============================================================
+//  VIEW 07 — TRENDS (week over week)
+// ============================================================
+const TREND_COLORS = { temp:"var(--lime)", moisture:"var(--blue)", ec:"var(--ink)" };
+function trendChart(series, color){
+  const pts = series.points, n = pts.length;
+  const vals = pts.filter(v=>v!=null);
+  if(!vals.length) return `<div class="trend-empty">No soil data yet for this scope.</div>`;
+  let lo=Math.min(...vals), hi=Math.max(...vals);
+  if(lo===hi){ lo-=1; hi+=1; } else { const p=(hi-lo)*0.15; lo-=p; hi+=p; }
+  const W=600,H=160,mx=10,top=14,bot=18;
+  const X = i => n<=1 ? W/2 : mx + i*(W-2*mx)/(n-1);
+  const Y = v => (H-bot) - ((v-lo)/(hi-lo))*((H-bot)-top);
+  let line="", firstX=null, lastX=null, lastY=null;
+  pts.forEach((v,i)=>{ if(v==null) return; const x=X(i), y=Y(v);
+    if(firstX===null) firstX=x; lastX=x; lastY=y;
+    line += (line?" L":"M") + x.toFixed(1) + " " + y.toFixed(1); });
+  const area = firstX===null ? "" :
+    `M${firstX.toFixed(1)} ${H-bot} L` + line.slice(1) + ` L${lastX.toFixed(1)} ${H-bot} Z`;
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img">
+    <path d="${area}" fill="${color}" opacity="0.10"></path>
+    <path d="${line}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"></path>
+    <circle cx="${lastX.toFixed(1)}" cy="${lastY.toFixed(1)}" r="3.5" fill="${color}"></circle>
+  </svg>`;
+}
+function deltaSpan(curr, prev){
+  if(curr==null || prev==null) return "";
+  const d = +(curr-prev).toFixed(1);
+  if(d>0) return `<span class="d d-up">▲ ${d}</span>`;
+  if(d<0) return `<span class="d d-dn">▼ ${Math.abs(d)}</span>`;
+  return `<span class="d d-flat">– 0</span>`;
+}
+function lastTwo(points){
+  let last=null, prev=null;
+  for(const v of points){ if(v!=null){ prev=last; last=v; } }
+  return [last, prev];
+}
+async function viewTrends(){
+  const loc = STATE.trendLoc;
+  const t = await API.get(`/api/trends?crop=${STATE.crop}${loc?`&loc=${encodeURIComponent(loc)}`:""}`);
+  STATE._trendWeeks = t.weeks;
+  const order = ["temp","moisture","ec"];
+  const opts = [`<option value="">Field average (all points)</option>`]
+    .concat(t.locations.map(l=>`<option value="${esc(l)}" ${l===loc?"selected":""}>${esc(l)}</option>`)).join("");
+
+  const cards = order.map(k=>{
+    const s=t.series[k]; const [last,prev]=lastTwo(s.points);
+    const lastTxt = last==null ? "—" : last;
+    return `<div class="trend-card">
+      <div class="th"><h3>${esc(s.label)}</h3>
+        <span class="last">${lastTxt}<span class="u">${esc(s.unit)}</span>${deltaSpan(last,prev)}</span></div>
+      ${trendChart(s, TREND_COLORS[k])}</div>`;
+  }).join("");
+
+  // delta table: one row per week (newest first), columns = the 3 metrics
+  const rows = t.weeks.map((wk,i)=>{
+    const cells = order.map(k=>{
+      const v=t.series[k].points[i];
+      // previous non-null before i
+      let prev=null; for(let j=i-1;j>=0;j--){ if(t.series[k].points[j]!=null){ prev=t.series[k].points[j]; break; } }
+      return `<td>${v==null?'<span style="color:var(--ink-faint)">—</span>':v} ${deltaSpan(v,prev)}</td>`;
+    }).join("");
+    return `<tr><td>${esc(wk)}</td>${cells}</tr>`;
+  }).reverse().join("");
+
+  const scopeLabel = loc ? `point <b>${esc(loc)}</b>` : `the <b>field average</b>`;
+  return `
+  <div class="vhead rise"><div class="step" style="background:var(--lime);color:#000">Analysis · Week over week</div><h1>Trends</h1>
+    <p>Soil readings over time for <b>${cap(STATE.crop)}</b> — ${scopeLabel}. Each point is the mean of that location's three TDR sensors; the field average is the mean across all points. Lab metrics can be added later.</p></div>
+  <div class="trend-controls rise" style="animation-delay:.05s">
+    <label>Scope</label>
+    <select id="trendScope">${opts}</select>
+  </div>
+  <div class="trend-grid rise" style="animation-delay:.08s">${cards}</div>
+  ${t.weeks.length ? `<div class="section-title rise"><span class="idx">07·A</span><h2>By week</h2><span class="rule"></span></div>
+  <div class="panel rise"><div class="pbody"><table class="data">
+    <thead><tr><th>Week</th><th>Soil temp °C</th><th>Soil moisture %</th><th>Soil EC dS/m</th></tr></thead>
+    <tbody>${rows}</tbody></table></div></div>` : ""}`;
 }
 
 // ============================================================
@@ -910,6 +1005,7 @@ async function render(){
   try{
     let html;
     if(STATE.view==="weeks") html=await viewWeeks();
+    else if(STATE.view==="trends") html=await viewTrends();
     else if(STATE.view==="overview") html=await viewOverview();
     else if(STATE.view==="survey") html=await viewSurvey();
     else if(STATE.view==="lab") html=await viewLab();
@@ -989,6 +1085,9 @@ function wire(){
         }
       });
     });
+  }
+  if(STATE.view==="trends"){
+    const sc=$("#trendScope"); if(sc) sc.onchange=()=>{ STATE.trendLoc=sc.value; render(); };
   }
   if(STATE.view==="overview"){
     $("#view").querySelectorAll(".pt").forEach(c=>c.onclick=()=>{STATE.activePt=c.dataset.pt;STATE.view="obs";render();});

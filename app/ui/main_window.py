@@ -26,6 +26,7 @@ from app.ui.export_tab import ExportTab
 from app.ui.lab_import_tab import LabImportTab
 from app.ui.observations_tab import ObservationsTab
 from app.ui.survey_import_tab import SurveyImportTab
+from app.ui.trends_tab import TrendsTab
 from app.ui.week_overview_tab import WeekOverviewTab
 from app.ui.weeks_tab import WeeksTab
 
@@ -52,12 +53,14 @@ class MainWindow(QMainWindow):
         self.survey_tab = SurveyImportTab(self)
         self.lab_tab = LabImportTab(self)
         self.export_tab = ExportTab(self)
+        self.trends_tab = TrendsTab(self)
         self.tabs.addTab(self.weeks_tab, "Weeks")
         self.tabs.addTab(self.overview_tab, "Week overview")
         self.tabs.addTab(self.obs_tab, "Observations")
         self.tabs.addTab(self.survey_tab, "Survey123 Import")
         self.tabs.addTab(self.lab_tab, "Lab Import")
         self.tabs.addTab(self.export_tab, "Export")
+        self.tabs.addTab(self.trends_tab, "Trends")
         layout.addWidget(self.tabs, 1)
 
         self._populate_crop_combo()

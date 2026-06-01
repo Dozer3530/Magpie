@@ -133,6 +133,19 @@ def test_week_rename_bad_name_400(client):
     assert res.status_code == 400
 
 
+def test_trends_route(client, canola):
+    t1 = _field_name(canola.template_path, "TDR_1_SOIL_TEMPERATURE")
+    client.post("/api/weeks", json={"tag": "2026-W22"})
+    client.put("/api/obs", json={"crop": "canola", "week": "2026-W22", "loc": "M1",
+                                 "values": {t1: "17.5"}})
+    field = client.get("/api/trends", params={"crop": "canola"}).json()
+    assert "2026-W22" in field["weeks"]
+    assert field["series"]["temp"]["points"][field["weeks"].index("2026-W22")] == 17.5
+    # per-point scope
+    m1 = client.get("/api/trends", params={"crop": "canola", "loc": "M1"}).json()
+    assert m1["scope"] == "M1"
+
+
 def test_backup_route(client, isolated_db):
     res = client.post("/api/backup")
     assert res.status_code == 200
