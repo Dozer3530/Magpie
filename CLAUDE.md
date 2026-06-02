@@ -50,7 +50,7 @@ in `app/crops.py`. No other code changes.
   `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`.
 - `gh` CLI is not on PATH — use `"C:\Program Files\GitHub CLI\gh.exe"`.
   Git identity: Dozer3530 / zachkom@telus.net. Repo: github.com/Dozer3530/Magpie
-  (private). Current release: **v1.0.0** (Latest).
+  (private). Current release: **v1.1.0** (Latest).
 
 ## Local-only (git-ignored, keep out of commits)
 `data/` (DB, photos, backups), `exports/`, `sample_imports/` (fake CSVs carry
