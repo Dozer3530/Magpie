@@ -149,6 +149,7 @@
   .track i{position:absolute;inset:0 100% 0 0;border-right:2px solid var(--line);animation:grow 1.1s cubic-bezier(.16,1,.3,1) forwards}
   .track i.survey{background:var(--lime)}
   .track i.lab{background:var(--blue)}
+  .track i.pest{background:#F2A900}
   @keyframes grow{to{right:var(--r)}}
 
   .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
@@ -192,7 +193,7 @@
     border:2px solid var(--line);background:var(--bg);color:var(--ink);width:130px}
   .wk-crop{margin-top:14px;padding-top:14px;border-top:2px solid var(--line-2)}
   .wk-crop-name{font-family:"Space Mono",monospace;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--ink-soft);margin-bottom:9px}
-  .wk-bars{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .wk-bars{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
   .wk-bar .lab-mt{display:flex;justify-content:space-between;font-family:"Space Mono",monospace;font-size:10px;
     font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);margin-bottom:6px}
   .wk-bar .lab-mt b{color:var(--ink)}
@@ -501,10 +502,11 @@ function renderNav(){
 // ============================================================
 //  VIEW 01 — WEEKS DASHBOARD
 // ============================================================
-function progressBar(kind, label, locs, total, filled, expected){
+function progressBar(kind, label, locs, total, filled, expected, noun){
   const pct = total ? Math.round(locs/total*100) : 0;
   const cellPct = expected ? Math.round(filled/expected*100) : 0;
-  return `<div class="wk-bar" title="${filled}/${expected} fields filled (${cellPct}%)">
+  const tip = noun ? `${locs}/${total} ${noun}` : `${filled}/${expected} fields filled (${cellPct}%)`;
+  return `<div class="wk-bar" title="${tip}">
     <div class="lab-mt"><span>${label}</span><b>${locs}/${total}</b></div>
     <div class="track"><i class="${kind}" style="--r:${100-pct}%"></i></div></div>`;
 }
@@ -516,6 +518,7 @@ function weekCard(w){
       <div class="wk-bars">
         ${progressBar("survey","Field", c.field_locations, c.total_locations, c.field_filled, c.field_expected)}
         ${progressBar("lab","Lab", c.lab_locations, c.total_locations, c.lab_filled, c.lab_expected)}
+        ${progressBar("pest","Pest", c.pest_cards||0, c.total_locations, 0, 0, "cards completed")}
       </div>
     </div>`).join("");
   return `<article class="pt wkcard rise ${active?"wk-active":""}" data-week="${esc(w.iso_week)}">
@@ -538,7 +541,7 @@ async function viewWeeks(){
     : `<div class="loading">No weeks yet — create one to start.</div>`;
   return `
   <div class="vhead rise"><div class="step">Step 01 · Multi-week</div><h1>Weeks</h1>
-    <p>Every week with its <b>Field</b> (Survey123) and <b>Lab</b> (PT2R) completeness side by side — counted as monitoring points with data, ${STATE.crop?`for each crop`:""}. Field obs land first each week; the Lab bar fills in as results come back. Rename a week to whatever you call it (the code is also used in export filenames).</p></div>
+    <p>Every week with its <b>Field</b> (Survey123), <b>Lab</b> (PT2R) and <b>Pest</b> (cards completed) completeness side by side, per crop — each bar counts monitoring points. Field obs land first; the Lab and Pest bars fill in as results come back. Rename a week to whatever you call it (the code is also used in export filenames).</p></div>
   <div class="actions rise" style="margin:0 0 8px">
     <button class="btn" id="newWeekDash">+ New week</button>
     <button class="btn ghost" id="backupBtn">↧ Back up data</button>

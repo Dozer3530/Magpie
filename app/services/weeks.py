@@ -14,6 +14,7 @@ from app.db import (
     delete_week as _delete_week,
     list_locations,
     list_obs_for_week,
+    list_pest_for_week,
     list_weeks,
     rename_week as _rename_week,
     upsert_week,
@@ -143,6 +144,10 @@ def all_weeks_progress() -> list[dict]:
                     field_locs += 1 if ff else 0
                     lab_locs += 1 if lf else 0
 
+                # Pest track: monitoring points whose card was completed that week.
+                pest_rows = list_pest_for_week(conn, crop.code, iso)
+                pest_cards = sum(1 for r in pest_rows if r["card_completed"])
+
                 crops_out.append({
                     "crop_code": crop.code,
                     "display_name": meta["display_name"],
@@ -153,6 +158,8 @@ def all_weeks_progress() -> list[dict]:
                     "lab_filled": lab_filled,
                     "lab_expected": len(lnames) * n_locs,
                     "lab_locations": lab_locs,
+                    "pest_cards": pest_cards,
+                    "pest_uploaded": bool(pest_rows),
                 })
             out.append({
                 "iso_week": iso,

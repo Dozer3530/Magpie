@@ -27,6 +27,7 @@ from app.services import weeks as weeks_service
 
 _FIELD_COLOR = "#7E9A1E"  # lime-deep (Survey123)
 _LAB_COLOR = "#3D6BFF"    # blue (PT2R)
+_PEST_COLOR = "#E59500"   # amber (Pest ID cards)
 
 
 class WeeksTab(QWidget):
@@ -48,8 +49,8 @@ class WeeksTab(QWidget):
         outer.addLayout(top)
 
         hint = QLabel(
-            "Field = Survey123 · Lab = PT2R. Each bar counts monitoring points "
-            "with data. Obs land first; the Lab bar fills as results come back.",
+            "Field = Survey123 · Lab = PT2R · Pest = cards completed. Each bar "
+            "counts monitoring points; Field lands first, Lab and Pest fill in later.",
             self,
         )
         hint.setStyleSheet("color: #666;")
@@ -126,6 +127,8 @@ class WeeksTab(QWidget):
         g.addWidget(self._bar(c["field_locations"], total, _FIELD_COLOR), 1, 1)
         g.addWidget(QLabel("Lab"), 2, 0)
         g.addWidget(self._bar(c["lab_locations"], total, _LAB_COLOR), 2, 1)
+        g.addWidget(QLabel("Pest"), 3, 0)
+        g.addWidget(self._bar(c.get("pest_cards", 0), total, _PEST_COLOR), 3, 1)
         return w
 
     def _bar(self, locs: int, total: int, color: str) -> QProgressBar:

@@ -140,6 +140,16 @@ def test_export_no_block_without_pest_data(isolated_db, corn, tmp_path):
     wb.close()
 
 
+def test_weeks_progress_includes_pest_track(isolated_db, tmp_path):
+    weeks_service.create_week("2026-W22")
+    pests.commit(_csv(tmp_path, "corn.csv", CORN_CSV), "2026-W22", 1)  # 3 cards TRUE
+    prog = weeks_service.all_weeks_progress()
+    wk = next(w for w in prog if w["iso_week"] == "2026-W22")
+    corn = next(c for c in wk["crops"] if c["crop_code"] == "corn")
+    assert corn["pest_cards"] == 3
+    assert corn["pest_uploaded"] is True
+
+
 # ---- pest counts in Trends -------------------------------------------------
 
 def test_pest_trends_category(isolated_db, tmp_path):
