@@ -10,9 +10,6 @@ Weekly crop-monitoring package builder. Funnels Survey123 field observations,
 PT2R lab reports, and photos into a single per-crop Excel + GeoPackage
 deliverable for the client.
 
-A companion to [Perch](https://github.com/Dozer3530/Perch) and
-[Lapwing](https://github.com/Dozer3530/Lapwing) — Perch lands drone imagery,
-Lapwing watches from above, Magpie assembles the weekly package.
 
 Point it at a Survey123 export and a lab `.xls`, assign each lab row to a
 monitoring point, click Export — you get a zipped weekly package with the
