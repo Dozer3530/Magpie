@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 
 from app.crops import CROPS
 from app.services import exports as exports_service
+from app.services import pests as pests_service
 
 
 class WeekOverviewTab(QWidget):
@@ -37,6 +38,7 @@ class WeekOverviewTab(QWidget):
         # One table per crop, side-by-side.
         self._crop_tables: dict[str, QTableWidget] = {}
         self._totals_labels: dict[str, QLabel] = {}
+        self._pest_labels: dict[str, QLabel] = {}
         crops_row = QHBoxLayout()
         for crop in CROPS:
             box = QGroupBox(crop.display_name, self)
@@ -51,8 +53,13 @@ class WeekOverviewTab(QWidget):
             totals = QLabel("", box)
             totals.setStyleSheet("color: #555;")
             vbox.addWidget(totals)
+            pest = QLabel("", box)
+            pest.setStyleSheet("color: #2f6e2f;")
+            pest.setWordWrap(True)
+            vbox.addWidget(pest)
             self._crop_tables[crop.code] = table
             self._totals_labels[crop.code] = totals
+            self._pest_labels[crop.code] = pest
             crops_row.addWidget(box, 1)
         outer.addLayout(crops_row, 1)
 
@@ -66,6 +73,8 @@ class WeekOverviewTab(QWidget):
             for t in self._crop_tables.values():
                 t.setRowCount(0)
             for lbl in self._totals_labels.values():
+                lbl.setText("")
+            for lbl in self._pest_labels.values():
                 lbl.setText("")
             return
         self.header.setText(f"Week overview — {week}")
@@ -99,3 +108,14 @@ class WeekOverviewTab(QWidget):
                 f"{total_fields_filled} / {expected * len(locs)} fields filled "
                 f"({pct:.0f}%)"
             )
+
+            pest = pests_service.pest_status(crop.code, week)
+            pest_lbl = self._pest_labels[crop.code]
+            if pest["uploaded"]:
+                bugs = (f"{len(pest['bug_types'])} bug type(s)"
+                        if pest["bug_types"] else "no bugs")
+                pest_lbl.setText(
+                    f"Pest ID: uploaded ✓ — cards {pest['cards_completed']}/{pest['total_locations']} · {bugs}"
+                )
+            else:
+                pest_lbl.setText("Pest ID: not uploaded")

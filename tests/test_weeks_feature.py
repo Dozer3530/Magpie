@@ -176,7 +176,7 @@ def test_trend_categories_listed(isolated_db, canola):
     weeks_service.create_week("2026-W22")
     res = trends.trend_series("canola", None, "nutrients")
     assert res["category"] == "nutrients"
-    assert {c["key"] for c in res["categories"]} == {"soil", "disease_growth", "nutrients", "ratios"}
+    assert {c["key"] for c in res["categories"]} == {"soil", "disease_growth", "nutrients", "ratios", "pests"}
     # nutrient series include N (a bare lab value)
     assert any(s["key"] == "N" for s in res["series"])
 

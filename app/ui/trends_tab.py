@@ -48,6 +48,7 @@ class TrendsTab(QWidget):
             ("disease_growth", "Disease & growth"),
             ("nutrients", "Nutrient values"),
             ("ratios", "Nutrient ratios"),
+            ("pests", "Pest counts"),
         ]:
             self.category.addItem(label, key)
         self.category.currentIndexChanged.connect(self._refill)

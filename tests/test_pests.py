@@ -140,6 +140,36 @@ def test_export_no_block_without_pest_data(isolated_db, corn, tmp_path):
     wb.close()
 
 
+# ---- pest counts in Trends -------------------------------------------------
+
+def test_pest_trends_category(isolated_db, tmp_path):
+    from app.services import trends
+
+    wk1 = (
+        "p,DATE,ID Number,CARD COMPLETED,Aphid,Lygus\n"
+        ",June 1,L1_1,TRUE,2,1\n"
+        ",June 1,L2_1,TRUE,3,\n"
+    )
+    wk2 = (
+        "p,DATE,ID Number,CARD COMPLETED,Aphid,Lygus\n"
+        ",June 8,L1_1,TRUE,5,4\n"
+    )
+    weeks_service.create_week("2026-W22")
+    weeks_service.create_week("2026-W23")
+    pests.commit(_csv(tmp_path, "w1.csv", wk1), "2026-W22", 1)
+    pests.commit(_csv(tmp_path, "w2.csv", wk2), "2026-W23", 1)
+
+    field = trends.trend_series("corn", None, "pests")
+    assert field["category"] == "pests"
+    assert field["weeks"] == ["2026-W22", "2026-W23"]
+    aphid = next(s for s in field["series"] if s["key"] == "Aphid")
+    assert aphid["points"] == [5, 5]   # W22: 2+3, W23: 5
+
+    l1 = trends.trend_series("corn", "L1", "pests")
+    aphid_l1 = next(s for s in l1["series"] if s["key"] == "Aphid")
+    assert aphid_l1["points"] == [2, 5]
+
+
 # ---- rename migrates pest rows --------------------------------------------
 
 def test_rename_week_migrates_pest(isolated_db, tmp_path):

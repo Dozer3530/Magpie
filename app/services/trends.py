@@ -19,19 +19,27 @@ points that reported that week — "mean" for readings, "sum" for disease flags
 """
 from __future__ import annotations
 
+import json
 import re
 from statistics import mean
 
 from app.crops import crop_by_code
-from app.db import connect, list_locations, list_obs_for_week, list_weeks
+from app.db import (
+    connect,
+    list_locations,
+    list_obs_for_week,
+    list_pest_for_week,
+    list_weeks,
+)
 from app.schema import FieldKind, page_of, read_template_fields
 
-CATEGORIES = ("soil", "disease_growth", "nutrients", "ratios")
+CATEGORIES = ("soil", "disease_growth", "nutrients", "ratios", "pests")
 CATEGORY_LABELS = {
     "soil": "Soil readings",
     "disease_growth": "Disease & growth",
     "nutrients": "Nutrient values",
     "ratios": "Nutrient ratios",
+    "pests": "Pest counts",
 }
 
 
@@ -102,10 +110,73 @@ def _specs(category: str, fields):
     return specs
 
 
+def _round(v):
+    r = round(float(v), 1)
+    return int(r) if r == int(r) else r
+
+
+def _pest_trends(crop_code: str, location_id: str | None) -> dict:
+    """Pest-count series, one per bug type, from the pest_obs feed.
+
+    Field view = total count of that bug across reporting points each week;
+    per-point = that point's count. A week with no pest data is a gap; a week
+    with pest data but no record of that bug counts as 0.
+    """
+    with connect() as conn:
+        weeks = [dict(r) for r in list_weeks(conn)]
+        locs = [r["location_id"] for r in list_locations(conn, crop_code)]
+        weeks.sort(key=lambda w: (w.get("created_at") or "", w["iso_week"]))
+        per_week = {
+            w["iso_week"]: {
+                r["location_id"]: json.loads(r["bugs_json"] or "{}")
+                for r in list_pest_for_week(conn, crop_code, w["iso_week"])
+            }
+            for w in weeks
+        }
+
+    week_tags = [w["iso_week"] for w in weeks]
+    bug_names: list[str] = []
+    for wt in week_tags:
+        for bugs in per_week[wt].values():
+            for b in bugs:
+                if b not in bug_names:
+                    bug_names.append(b)
+
+    def num(v):
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return 0.0
+
+    series = []
+    for b in bug_names:
+        points = []
+        for wt in week_tags:
+            rows = per_week[wt]
+            if location_id is not None:
+                bugs = rows.get(location_id)
+                points.append(_round(num(bugs.get(b, 0))) if bugs is not None else None)
+            else:
+                points.append(_round(sum(num(bg.get(b, 0)) for bg in rows.values())) if rows else None)
+        series.append({"key": b, "label": b, "unit": "count", "points": points})
+
+    return {
+        "crop": crop_code,
+        "scope": location_id or "field",
+        "category": "pests",
+        "categories": [{"key": c, "label": CATEGORY_LABELS[c]} for c in CATEGORIES],
+        "locations": locs,
+        "weeks": week_tags,
+        "series": series,
+    }
+
+
 def trend_series(crop_code: str, location_id: str | None = None, category: str = "soil") -> dict:
     """Week-ordered series for one metric category (see module docstring)."""
     if category not in CATEGORIES:
         category = "soil"
+    if category == "pests":
+        return _pest_trends(crop_code, location_id)
     crop = crop_by_code(crop_code)
     fields = read_template_fields(crop.template_path)
     specs = _specs(category, fields)

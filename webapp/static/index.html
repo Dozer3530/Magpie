@@ -636,6 +636,8 @@ async function viewTrends(){
 // ============================================================
 async function viewOverview(){
   const ov = STATE.overview = await API.get(`/api/overview?crop=${STATE.crop}&week=${encodeURIComponent(STATE.week)}`);
+  let pest = null;
+  try{ pest = await API.get(`/api/pest/status?crop=${STATE.crop}&week=${encodeURIComponent(STATE.week)}`); }catch(e){}
   const exp = ov.expected_fields, total = ov.total_locations;
   const totFilled = ov.locations.reduce((a,l)=>a+l.filled,0);
   const totPossible = exp*total || 1;
@@ -675,8 +677,21 @@ async function viewOverview(){
       <div class="track"><i class="lab" style="--r:${100-pct}%"></i></div></div>
   </div>
 
+  ${pestLine(pest)}
+
   <div class="section-title rise" style="animation-delay:.16s"><span class="idx">01·A</span><h2>Monitoring points</h2><span class="rule"></span></div>
   <div class="grid3">${cards}</div>`;
+}
+function pestLine(pest){
+  if(!pest) return "";
+  if(!pest.uploaded){
+    return `<div class="meter rise" style="animation-delay:.14s;border:var(--bd) solid var(--line)">
+      <div class="mt"><span>Pest ID</span><b style="color:var(--ink-faint)">not uploaded</b></div></div>`;
+  }
+  const bugs = pest.bug_types.length ? `${pest.bug_types.length} bug type(s): ${pest.bug_types.map(esc).join(", ")}` : "no bugs";
+  return `<div class="meter rise" style="animation-delay:.14s;border:var(--bd) solid var(--line)">
+    <div class="mt"><span>Pest ID · uploaded${pest.source_week?` · sheet wk ${pest.source_week}`:""}</span><b>cards ${pest.cards_completed}/${pest.total_locations}</b></div>
+    <div class="note" style="margin-top:6px">${bugs}</div></div>`;
 }
 
 // ============================================================
