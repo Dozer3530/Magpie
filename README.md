@@ -6,166 +6,228 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Weekly crop-monitoring package builder. Funnels Survey123 field observations,
-PT2R lab reports, and photos into a single per-crop Excel + GeoPackage
-deliverable for the client.
+**Magpie builds the weekly crop-monitoring data package.** It funnels three
+field/lab feeds into a per-crop store and exports a single, client-ready
+deliverable — a stamped Excel workbook, a matching GeoPackage, the photos, and
+one `.zip` — for each crop, every week.
 
+Run it as a **desktop app** or a **local web app in your browser** — they share
+one engine, so they always produce the same output.
 
-Point it at a Survey123 export and a lab `.xls`, assign each lab row to a
-monitoring point, click Export — you get a zipped weekly package with the
-template filled in and photos hyperlinked from the right rows.
+---
 
 ## What it does
 
 Each week you collect data at 9 fixed monitoring points per crop (Canola
-`M1`–`M9`, Corn `L1`–`L9`, plus future crops). Two upstream sources feed
+`M1`–`M9`, Corn `L1`–`L9`; more crops drop in). Three upstream feeds flow into
 each weekly package:
 
-- **Survey123** field observations — disease presence, severity, TDR soil
+- **Survey123** field observations — disease presence & severity, TDR soil
   sensors, insect notes, growth stage, photos.
-- **PT2R lab reports** — full nutrient panel plus sufficiency ratings and
+- **PT2R lab reports** — the full nutrient panel plus sufficiency ratings and
   expected-ratio columns.
+- **Pest ID** — a living per-field bug-count log; you pick which week to pull.
 
-Magpie merges both into per-crop templates that match the column layout your
-client already expects, plus a matching GeoPackage for GIS work, plus a
-single `.zip` you can email.
+Magpie merges them into the per-crop template the client already expects, plus
+a matching GeoPackage for GIS, plus a single `.zip` you can hand off. It also
+keeps the week-over-week history so you can watch trends and coverage build up.
 
-## Install
+---
+
+## Setup
+
+For a colleague setting this up fresh on a Windows PC.
+
+### 1. Prerequisites
+
+- **Python 3.11+** — install from [python.org](https://www.python.org/downloads/),
+  and **tick "Add Python to PATH"** in the installer. Verify in a new terminal:
+  ```
+  python --version
+  ```
+- **Git** — install from [git-scm.com](https://git-scm.com/download/win) (or use
+  GitHub Desktop). Needed to clone the repo and pull updates.
+- **Access to the repo** — it's private; ask the owner (Dozer3530) to add you.
+
+### 2. Get the code
 
 ```
-pip install -r requirements.txt          # desktop app
-pip install -r requirements-web.txt       # + the local web frontend
+git clone https://github.com/Dozer3530/Magpie.git
+cd Magpie
 ```
+(The repo folder may be named "Earth Daily Package Organizer and Creator" — the
+product is Magpie.)
 
-`requirements-web.txt` pulls in everything in `requirements.txt` plus FastAPI,
-uvicorn, and python-multipart — install it only if you want the browser
-frontend. The desktop app runs without the web dependencies.
+### 3. Install the dependencies
 
-Tested on Python 3.11+ on Windows. Uses PySide6, openpyxl, python-calamine
-(reads legacy `.xls`), pandas, geopandas / pyogrio / shapely.
+```
+pip install -r requirements-web.txt
+```
+That installs everything: the core libraries plus the web frontend (FastAPI,
+uvicorn). If you only ever want the desktop app, `pip install -r requirements.txt`
+is enough.
+
+### 4. First run
+
+```
+python -m webapp
+```
+Your browser opens to **http://127.0.0.1:8000**. First launch creates the
+current week and seeds the monitoring points automatically. Keep the terminal
+window open while you work; close it (or Ctrl+C) to stop.
+
+> **Updating later:** `git pull`, then re-run. After any update, **hard-refresh
+> the browser (Ctrl+Shift+R)** so it picks up the new page.
+
+### 5. (Optional) one-click desktop launcher
+
+Make a Windows shortcut to **`run-web.bat`** and set its icon to
+`assets/magpie.ico`. Double-clicking it starts the server and opens your
+browser; close the window to stop. (There's also `run.bat` for the desktop app.)
+
+---
 
 ## Run
 
 Two frontends, **one shared core** — pick whichever you prefer; they produce
 byte-equivalent packages because both call the same `app/services/` layer.
 
-**Desktop (PySide6):** double-click `run.bat`, or:
+**Local web app** (browser → `127.0.0.1:8000`): double-click `run-web.bat`, or
+`python -m webapp`.
 
-```
-python -m app
-```
-
-**Local web app (browser → `127.0.0.1:8000`):** double-click `run-web.bat`, or:
-
-```
-python -m webapp
-```
-
-It opens your browser to a local FastAPI server bound to `127.0.0.1` only —
-single-user, no auth, never exposed to the network (the templates carry real
-client monitoring-point coordinates).
-
-For a one-click desktop launcher, make a shortcut to `run-web.bat` (set its icon
-to `assets/magpie.ico`). Double-click it: a small status window opens and your
-browser pops up once the app is ready; close that window to stop Magpie.
+**Desktop app** (PySide6 window): double-click `run.bat`, or `python -m app`.
 
 > **Run one frontend at a time** against the same `packages.sqlite`. It's a
-> single-user tool, so this is fine — but two simultaneous editors of one row
-> is a logical conflict SQLite won't resolve. (The DB runs in WAL mode, which
-> makes incidental concurrent *reads* painless, but it is not multi-writer
-> safe by intent.)
+> single-user tool, so this is fine — two simultaneous editors of one row is a
+> conflict SQLite won't resolve. (The DB runs in WAL mode, which makes
+> incidental concurrent *reads* painless, but it isn't multi-writer safe by
+> intent.)
 
-Either way, first launch auto-creates the current ISO week and seeds the
-database with the locations + growth stages defined in `app/crops.py`.
+> **Local & private by design.** The web server binds `127.0.0.1` only — never
+> `0.0.0.0`, no auth, never exposed to the network. The templates carry real
+> client monitoring-point coordinates, so the repo stays **private**.
 
-**Backups.** `packages.sqlite` is the single source of truth (and git-ignored),
-so back it up once it holds real weeks: double-click `backup.bat`, hit **Back up
-data** in either frontend, or run `python -m app.services.maintenance`. Each
-writes a timestamped, WAL-consistent snapshot to `data/backups/` — a normal
-SQLite file you can open directly or swap back in for `data/packages.sqlite`.
+---
+
+## The weekly workflow
+
+Both frontends present the same eight views:
+
+1. **Weeks** — the multi-week dashboard. Every week with three completeness
+   tracks per crop: **Field** (Survey123), **Lab** (PT2R), and **Pest** (cards
+   completed). Open, **rename** (the code is also the export filename), delete,
+   or create a week. Field lands first; Lab and Pest fill in as results arrive.
+2. **Week overview** — for the active crop + week, how many template fields each
+   monitoring point carries, plus the Pest ID upload status.
+3. **Survey123 Import** — upload the survey export; columns auto-map to the
+   template by name; photos in a sibling `media/` folder get copied in.
+4. **Lab Import** — upload the PT2R `.xls`; assign each lab row to a monitoring
+   point (the lab's `SampleID` doesn't map automatically).
+5. **Pest ID Import** — upload the field's living pest sheet. Magpie detects the
+   crop from the point IDs (`M`=Canola, `L`=Corn); you pick which **sheet week**
+   to pull and it attaches to the current week. Only the bug types seen that
+   week land in the package.
+6. **Observations** — everything merged from the feeds, hand-editable before
+   export, split into Field / Lab sub-tabs. Attach extra photos here.
+7. **Export** — produces the deliverable in `exports/<week>/`:
+   - `<Crop>_<week>.xlsx` — the template, filled in (styling preserved, columns
+     auto-sized; a colored pest block sits before the lab nutrients when bugs
+     were recorded that week)
+   - `<Crop>_<week>.gpkg` — the same data as a Point layer (EPSG:4326)
+   - `images/<crop>/<loc>/…` — the photo files
+   - `EarthDaily_<week>.zip` — the one-file deliverable
+8. **Trends** — week-over-week, field-average or per-point, with a category
+   picker: soil readings, disease & growth, nutrients, ratios, and pest counts.
+
+The `Images` column in the exported `.xlsx` becomes a `HYPERLINK` formula — the
+client unzips, clicks the cell, and the photo (or the location's photo folder)
+opens.
+
+---
 
 ## Two frontends, one core
 
-The whole point of the architecture is that a feature, bug fix, or template
-change takes effect in **both** frontends without editing two copies. All real
-logic — DB, schema, importers, exporters, merge policy, zip, photo handling,
-the observation form structure — lives in a UI-agnostic service layer
-(`app/services/`). The PySide6 desktop (`app/ui/`) and the FastAPI web server
-(`webapp/`) are both thin presentation shells that call the same service
-functions.
+The whole point of the architecture: a feature, bug fix, or template change
+takes effect in **both** frontends without editing two copies. All real logic —
+DB, schema, importers, exporters, merge policy, zip, photo handling, the
+observation form structure, trends, backups — lives in a UI-agnostic service
+layer (`app/services/`). The PySide6 desktop (`app/ui/`) and the FastAPI web
+server (`webapp/`) are thin shells that call the same functions.
 
 ```
         app/services/   ← the brain (pure Python; no Qt, no HTTP)
-        weeks · observations(+form schema) · imports · exports · status
+  weeks · observations · imports · exports · trends · pests · maintenance
               │                                   │
-        app/ui/  (PySide6 widgets)          webapp/  (FastAPI routes + static JS)
+        app/ui/  (PySide6 tabs)             webapp/  (FastAPI routes + static JS)
 ```
 
-A `tests/test_parity.py` test seeds one set of observations, builds the week
-through the service layer *and* through the web `/api/export` route, and
-asserts the Excel + GeoPackage come out content-identical — the automated
-guarantee that the two frontends never drift.
+`docs/PARITY.md` maps every user action → service → desktop entry point → web
+route, and has no pending rows. `tests/test_parity.py` builds a week through the
+service layer *and* through the web `/api/export` route and asserts the Excel +
+GeoPackage come out content-identical — the automated guarantee that the two
+never drift.
 
-## Weekly workflow
+---
 
-Five tabs, in order:
+## Backups
 
-1. **Week overview** — pick the crop + week. See which monitoring points
-   already have data and which are still empty.
-2. **Survey123 Import** — browse to the survey export. Photos in a sibling
-   `media/` folder get auto-copied into the app's image storage.
-3. **Lab Import** — browse to the PT2R `.xls`. Each lab row gets a
-   `Target location` dropdown (M1–M9 / L1–L9 / Skip) — assign by hand
-   since the lab's `SampleID` doesn't map automatically.
-4. **Observations** — split into *Field observations* and *Lab report*
-   sub-tabs. Hand-edit anything before export; attach extra photos here
-   if Survey123 didn't catch them.
-5. **Export** — produces the deliverable:
-   - `exports/<YYYY-Www>/Canola_<YYYY-Www>.xlsx` — the template, filled in
-   - `exports/<YYYY-Www>/Canola_<YYYY-Www>.gpkg` — same data, Point layer
-   - `exports/<YYYY-Www>/images/canola/M1/…` — photo files
-   - `exports/<YYYY-Www>/EarthDaily_<YYYY-Www>.zip` — one-file deliverable
+`packages.sqlite` is the single source of truth (and git-ignored), so back it up
+once it holds real weeks. Three equivalent ways, all WAL-consistent snapshots
+into `data/backups/`:
 
-The `Images` column in the exported `.xlsx` becomes a `HYPERLINK` formula —
-client unzips the package, clicks the cell, and the photo (or the
-location's photo folder, if there are several) opens.
+- double-click **`backup.bat`**,
+- hit **Back up data** in either frontend, or
+- run `python -m app.services.maintenance`.
+
+Each writes `packages_<timestamp>.sqlite` — a normal SQLite file you can open
+directly or swap back in for `data/packages.sqlite` to restore.
+
+---
 
 ## How the templates work
 
-The shipped `Static Canola Template.xlsx` and `Static Corn Template.xlsx`
-files in the repo root are the **source of truth** for column layout. Magpie
-reads their headers at startup and uses them to:
+`Static Canola Template.xlsx` and `Static Corn Template.xlsx` (repo root) are the
+**source of truth** for column layout. Magpie reads their row-1 headers at
+startup and uses them to generate the `obs_<crop>` tables, lay out the dynamic
+form, drive the importers, and stamp the export (exports are just template
+copies with row data filled in, so the client's styling is preserved).
 
-- generate the `obs_<crop>` SQLite tables
-- lay out the dynamic form fields
-- drive the Excel export (preserves template styling — exports are just
-  template copies with row data stamped in)
+Adding a crop is a three-step drop-in — no Python changes outside the registry:
 
-Adding a third crop is a three-step drop-in — no Python changes outside the
-registry:
-
-1. Drop `Static <Crop> Template.xlsx` next to the existing templates,
-   matching the same shape (col A = ID, col B = Location, row 1 = headers).
+1. Drop `Static <Crop> Template.xlsx` next to the others, same shape
+   (col A = ID, col B = Location, row 1 = headers).
 2. Write `app/growth_stages/<crop>.py` exposing `STAGES: list[tuple[str, str]]`
    of (BBCH code, description).
 3. Append a `CropConfig` entry to `app/crops.py`.
 
-This pathway is tested — see the wheat drop-in integration test in
-`test_*` (run ad-hoc; see commit history).
+---
 
 ## Data conventions
 
 - Disease presence columns hold `"yes"` or blank. Severity is `Low` / `Med` /
-  `High` or blank (bands: Low 1–10%, Med 10–30%, High >30% of the plant).
-  Insect damage uses the same severity scale (`Insect_Damage_Severity`).
-- Nutrient `_rate` columns are PT2R letter codes (`D` / `L` / `S` / `H` /
-  `VH`) — editable combo boxes accept any one-off lab code without losing
-  it.
-- Measurement units are baked into the template headers (e.g. `N (%)`,
-  `Zn (ppm)`, `TDR_1_SOIL_TEMPERATURE (°C)`). Internal logic matches on a
-  unit-stripped key, so the unit text never breaks classification or import.
+  `High` or blank (bands: Low 1–10%, Med 10–30%, High >30%). Insect damage uses
+  the same scale.
+- Nutrient `_rate` columns are PT2R letter codes (`D` / `L` / `S` / `H` / `VH`).
+- Units are baked into the headers (`N (%)`, `Zn (ppm)`, `TDR_1_SOIL_TEMPERATURE
+  (°C)`); internal logic matches on a unit-stripped key, so the unit text never
+  breaks classification or import.
+- Everything is stored as TEXT so values round-trip the templates
+  byte-equivalent.
 - Locations are fixed across weeks; their lat/long lives in the templates.
-- One client, one output set per week. No multi-tenant model.
+
+---
+
+## Testing
+
+```
+python -m pytest -q
+```
+67 tests covering schema, DB, importers (incl. pest), services, the golden
+export, the pest export block, trends, and the desktop↔web export parity. The
+`tests/conftest.py` `isolated_db` fixture redirects the DB + image storage into
+a temp folder, so tests never touch your real `data/`.
+
+---
 
 ## Repository layout
 
@@ -173,19 +235,22 @@ This pathway is tested — see the wheat drop-in integration test in
 app/
 ├── __main__.py            desktop entry point (python -m app)
 ├── config.py              paths
-├── crops.py               crop registry (adding a 3rd crop = edit this)
-├── schema.py              reads template headers → typed field metadata
-├── db.py                  SQLite schema + helpers
-├── app_settings.py        last-used folder etc. (desktop-only)
+├── crops.py               crop registry (adding a crop = edit this)
+├── schema.py              template headers → typed fields + Field/Lab split
+├── db.py                  SQLite schema, helpers, rename/backup
+├── app_settings.py        last-used folders (desktop-only)
 ├── image_storage.py       photo storage layer
 ├── growth_stages/         per-crop BBCH lists
-├── importers/             Survey123 + lab CSV/xls loaders
-├── exporters/             xlsx + gpkg + photo-copy + zip
+├── importers/             survey123 / lab loaders + pest.py parser
+├── exporters/             xlsx (+ pest block) / gpkg / photo-copy / zip
 ├── services/              UI-agnostic brain both frontends call
-│   ├── weeks.py             ISO-week calc + create/delete/list
+│   ├── weeks.py             ISO week + CRUD + rename + all_weeks_progress
 │   ├── observations.py      load/save + build_form_schema (shared form layout)
 │   ├── imports.py           commit_survey / commit_lab orchestration
-│   └── exports.py           build_week_package / build_all + week_status
+│   ├── exports.py           build_week_package / build_all + week_status
+│   ├── trends.py            week-over-week series by category
+│   ├── pests.py             Pest ID parse / commit / status / export block
+│   └── maintenance.py       one-click WAL-safe DB backup
 └── ui/                    PySide6 tabs (thin: widgets only)
 
 webapp/
@@ -194,15 +259,19 @@ webapp/
 ├── serialize.py           the one place service dataclasses → JSON
 └── static/index.html      browser frontend (vanilla JS, no build step)
 
+docs/PARITY.md                every action ↔ desktop ↔ web (no pending rows)
 Static Canola Template.xlsx   column-layout source of truth
 Static Corn Template.xlsx     "
 requirements.txt              desktop deps
 requirements-web.txt          + FastAPI / uvicorn / multipart
-data/                         generated DB + photos (gitignored)
+run.bat · run-web.bat · backup.bat   one-click launchers
+data/                         generated DB + photos + backups (gitignored)
 exports/                      generated weekly packages (gitignored)
 tests/                        pytest safety net (incl. desktop↔web parity)
 ```
 
+---
+
 ## License
 
-MIT.
+MIT — see [LICENSE](LICENSE).
