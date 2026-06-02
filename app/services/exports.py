@@ -128,6 +128,20 @@ def _zip_week(iso_week: str) -> Path | None:
     return zip_path
 
 
+def _auto_publish_progress() -> None:
+    """Best-effort refresh of the shared progress page after an export.
+
+    Publishing must never make an export fail, so this swallows everything; it
+    only does anything if the user has configured a publish folder.
+    """
+    try:
+        from app.services import publish
+        if publish.get_publish_dir():
+            publish.publish_progress()
+    except Exception:
+        pass
+
+
 def build_week_package(crop_code: str, iso_week: str) -> ExportResult:
     """Export one crop for a week, then zip the whole week folder."""
     res = ExportResult(week=iso_week)
@@ -141,6 +155,7 @@ def build_week_package(crop_code: str, iso_week: str) -> ExportResult:
         res.zip_path = _zip_week(iso_week)
         if res.zip_path:
             res.produced.append(res.zip_path)
+    _auto_publish_progress()
     return res
 
 
@@ -162,4 +177,5 @@ def build_all(iso_week: str) -> ExportResult:
         res.zip_path = _zip_week(iso_week)
         if res.zip_path:
             res.produced.append(res.zip_path)
+    _auto_publish_progress()
     return res

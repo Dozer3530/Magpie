@@ -38,6 +38,7 @@ service — both columns inherit it for free.
 | Serve a photo | `image_storage.absolute_path` | image widget | `GET /api/images/file` |
 | Attach a photo | `image_storage.attach` | image widget | `POST /api/images` |
 | Back up the database | `maintenance.create_backup` (→ `db.backup_database`) | "Back up data" button + `backup.bat` | `POST /api/backup` |
+| Publish shareable progress page | `publish.publish_progress` (+ get/set_publish_dir; auto after export) | "Publish progress" button (folder picker) | `POST /api/publish` · `GET/PUT /api/publish/dir` |
 | Week-over-week trends (soil / disease+growth / nutrients / ratios) | `trends.trend_series` (category, field avg or per-point) | Trends tab (`app/ui/trends_tab.py`, category combo + delta table) | `GET /api/trends?cat=` (category select + SVG charts) |
 
 ## Known, accepted differences (UX only — never output)

@@ -156,6 +156,23 @@ def test_backup_route(client, isolated_db):
     assert (isolated_db / "backups" / body["name"]).exists()
 
 
+def test_publish_routes(client, tmp_path, monkeypatch):
+    from app import app_settings
+    monkeypatch.setattr(app_settings, "_SETTINGS_PATH", tmp_path / "settings.json")
+    drive = tmp_path / "drive"
+    assert client.put("/api/publish/dir", json={"path": str(drive)}).json()["ok"]
+    client.post("/api/weeks", json={"tag": "2026-W22"})
+    res = client.post("/api/publish").json()
+    assert res["ok"]
+    assert (drive / "magpie-progress.html").exists()
+
+
+def test_publish_no_dir_400(client, tmp_path, monkeypatch):
+    from app import app_settings
+    monkeypatch.setattr(app_settings, "_SETTINGS_PATH", tmp_path / "settings2.json")
+    assert client.post("/api/publish").status_code == 400
+
+
 # ---- Import flow (upload -> commit) ----------------------------------------
 
 def test_survey_import_upload_then_commit(client, canola):

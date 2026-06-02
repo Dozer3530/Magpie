@@ -184,6 +184,31 @@ directly or swap back in for `data/packages.sqlite` to restore.
 
 ---
 
+## Share progress with coworkers (live page)
+
+Magpie can publish a **self-refreshing progress page** so colleagues can *watch*
+how far along each week is — without editing access or a server.
+
+- Pick a **synced folder** once — point it at your **Google Drive for Desktop**
+  folder (or OneDrive / a network share). On desktop, **Publish progress** opens
+  a folder picker; on the web Weeks view, paste the folder path next to the
+  **Publish progress** button.
+- It writes one self-contained file, **`magpie-progress.html`** — the Weeks
+  dashboard (each week's Field/Lab/Pest counts per crop) with an "Updated &lt;time&gt;"
+  stamp. It **re-publishes automatically after every export**, plus the manual
+  button any time.
+- Coworkers **open the synced local copy** (e.g. `G:\My Drive\…\magpie-progress.html`)
+  in a browser; it **refreshes itself** and Drive syncs new versions, so it
+  stays current. It shows only completeness counts — no coordinates — so it's
+  safe to share.
+
+> Open the **synced file**, not the Google Drive *website* — Drive no longer
+> renders HTML, so the website just downloads it. "Live" here means the open
+> page self-refreshes and reflects the last publish; truly real-time would need
+> a hosted server.
+
+---
+
 ## How the templates work
 
 `Static Canola Template.xlsx` and `Static Corn Template.xlsx` (repo root) are the
@@ -250,7 +275,8 @@ app/
 │   ├── exports.py           build_week_package / build_all + week_status
 │   ├── trends.py            week-over-week series by category
 │   ├── pests.py             Pest ID parse / commit / status / export block
-│   └── maintenance.py       one-click WAL-safe DB backup
+│   ├── maintenance.py       one-click WAL-safe DB backup
+│   └── publish.py           shareable self-refreshing progress page
 └── ui/                    PySide6 tabs (thin: widgets only)
 
 webapp/

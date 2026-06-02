@@ -22,7 +22,9 @@ have no pending rows. Keep it that way.
 Services: `weeks` (CRUD + `rename_week` + `all_weeks_progress`), `observations`
 (`build_form_schema` + load/save), `imports`, `exports` (+ `week_status`),
 `trends` (`trend_series`), `maintenance` (`create_backup`), `pests`
-(`prepare`/`commit`/`pest_status`/`export_block` — the Pest ID feed).
+(`prepare`/`commit`/`pest_status`/`export_block` — the Pest ID feed),
+`publish` (`publish_progress` — shareable self-refreshing progress page to a
+synced folder; auto-runs after each export).
 
 ## Templates are the source of truth
 `Static Canola Template.xlsx` / `Static Corn Template.xlsx` (repo root): row 1

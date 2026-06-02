@@ -8,6 +8,7 @@ from __future__ import annotations
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QComboBox,
+    QFileDialog,
     QHBoxLayout,
     QInputDialog,
     QLabel,
@@ -21,6 +22,7 @@ from PySide6.QtWidgets import (
 
 from app.db import connect, list_crops
 from app.services import maintenance as maintenance_service
+from app.services import publish as publish_service
 from app.services import weeks as weeks_service
 from app.ui.export_tab import ExportTab
 from app.ui.lab_import_tab import LabImportTab
@@ -110,6 +112,11 @@ class MainWindow(QMainWindow):
         backup_btn.setToolTip("Write a timestamped snapshot of packages.sqlite to data/backups/")
         backup_btn.clicked.connect(self._on_backup_clicked)
         row.addWidget(backup_btn)
+
+        publish_btn = QPushButton("Publish progress", self)
+        publish_btn.setToolTip("Write a shareable, self-refreshing progress page to a synced folder (Google Drive / OneDrive)")
+        publish_btn.clicked.connect(self._on_publish_clicked)
+        row.addWidget(publish_btn)
         return row
 
     def _populate_crop_combo(self) -> None:
@@ -203,6 +210,26 @@ class MainWindow(QMainWindow):
             return
         QMessageBox.information(
             self, "Backup complete", f"Snapshot written to:\n{dest}"
+        )
+
+    def _on_publish_clicked(self) -> None:
+        # Pick (or re-confirm) the synced folder, then write the progress page.
+        current = publish_service.get_publish_dir() or ""
+        folder = QFileDialog.getExistingDirectory(
+            self, "Choose a synced folder to publish progress into (Google Drive / OneDrive)", current
+        )
+        if not folder:
+            return
+        publish_service.set_publish_dir(folder)
+        try:
+            dest = publish_service.publish_progress()
+        except Exception as exc:
+            QMessageBox.critical(self, "Publish failed", str(exc))
+            return
+        QMessageBox.information(
+            self, "Progress published",
+            f"Shareable page written to:\n{dest}\n\nCoworkers open this synced file in a "
+            f"browser; it refreshes itself. It re-publishes automatically after each export.",
         )
 
     def _on_context_changed(self) -> None:

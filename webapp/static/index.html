@@ -536,6 +536,8 @@ function weekCard(w){
 }
 async function viewWeeks(){
   const weeks = await API.get("/api/weeks/progress");
+  let pubDir = "";
+  try{ pubDir = (await API.get("/api/publish/dir")).dir || ""; }catch(e){}
   const cards = weeks.length
     ? `<div class="weeks-grid">${weeks.map(weekCard).join("")}</div>`
     : `<div class="loading">No weeks yet — create one to start.</div>`;
@@ -546,6 +548,11 @@ async function viewWeeks(){
     <button class="btn" id="newWeekDash">+ New week</button>
     <button class="btn ghost" id="backupBtn">↧ Back up data</button>
     <span class="note">creates the current ISO week${STATE.current?` · ${STATE.current}`:""}</span>
+  </div>
+  <div class="actions rise" style="margin:0 0 14px;animation-delay:.05s">
+    <input id="pubDir" class="cell" style="min-width:300px" placeholder="Publish folder — e.g. G:\\My Drive\\Magpie" value="${esc(pubDir)}">
+    <button class="btn ghost" id="publishBtn">▴ Publish progress</button>
+    <span class="note">writes a live magpie-progress.html for coworkers</span>
   </div>
   ${cards}`;
 }
@@ -1154,6 +1161,18 @@ function wire(){
       try{ const r=await API.post("/api/backup"); toast(`Backup saved · ${r.name}`); }
       catch(e){ toast("Backup failed: "+e.message,true); }
       bk.disabled=false;
+    };
+    const pd=$("#pubDir"); if(pd) pd.onchange=async()=>{
+      try{ await API.put("/api/publish/dir",{path:pd.value.trim()}); }catch(e){}
+    };
+    const pub=$("#publishBtn"); if(pub) pub.onclick=async()=>{
+      pub.disabled=true;
+      try{
+        if(pd) await API.put("/api/publish/dir",{path:pd.value.trim()});
+        const r=await API.post("/api/publish");
+        toast(`Progress published → ${r.path}`);
+      }catch(e){ toast("Publish failed: "+e.message,true); }
+      pub.disabled=false;
     };
     $("#view").querySelectorAll(".wkcard").forEach(card=>{
       const wk=card.dataset.week;

@@ -27,6 +27,7 @@ from app.services import imports as imports_service
 from app.services import maintenance as maintenance_service
 from app.services import observations as obs_service
 from app.services import pests as pests_service
+from app.services import publish as publish_service
 from app.services import trends as trends_service
 from app.services import weeks as weeks_service
 from app.services.imports import DuplicateTargetError
@@ -113,6 +114,33 @@ def post_backup() -> dict:
     """Write a timestamped, consistent snapshot of packages.sqlite."""
     dest = maintenance_service.create_backup()
     return {"ok": True, "name": dest.name, "path": str(dest)}
+
+
+# ---- Publish progress page -------------------------------------------------
+
+@app.get("/api/publish/dir")
+def get_publish_dir() -> dict:
+    return {"dir": publish_service.get_publish_dir() or ""}
+
+
+class PublishDir(BaseModel):
+    path: str
+
+
+@app.put("/api/publish/dir")
+def put_publish_dir(body: PublishDir) -> dict:
+    publish_service.set_publish_dir(body.path.strip())
+    return {"ok": True, "dir": publish_service.get_publish_dir() or ""}
+
+
+@app.post("/api/publish")
+def post_publish() -> dict:
+    """Write the shareable progress page to the configured folder."""
+    try:
+        dest = publish_service.publish_progress()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"ok": True, "path": str(dest)}
 
 
 # ---- Overview --------------------------------------------------------------
