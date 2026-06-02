@@ -14,12 +14,13 @@ from __future__ import annotations
 from pathlib import Path
 
 import openpyxl
+from openpyxl.styles import Font, PatternFill
 from openpyxl.utils import get_column_letter
 
 from app import image_storage
 from app.crops import CropConfig, crop_by_code
 from app.db import connect, list_locations, list_obs_for_week
-from app.schema import Field, FieldKind, read_template_fields
+from app.schema import Field, FieldKind, page_of, read_template_fields
 
 
 def _coerce_value(field: Field, raw: str):
@@ -80,8 +81,10 @@ def export_excel(crop_code: str, iso_week: str, out_path: Path) -> Path:
     if ws.max_row >= 2:
         ws.delete_rows(2, ws.max_row - 1)
 
+    loc_row: dict[str, int] = {}
     for r, loc in enumerate(locations, start=2):
         loc_id = loc["location_id"]
+        loc_row[loc_id] = r
         if "ID" in col_by_name:
             ws.cell(row=r, column=col_by_name["ID"], value=loc_id)
         if "Location" in col_by_name:
@@ -104,10 +107,65 @@ def export_excel(crop_code: str, iso_week: str, out_path: Path) -> Path:
             if value is not None:
                 ws.cell(row=r, column=col, value=value)
 
+    _write_pest_block(ws, fields, crop_code, iso_week, loc_row)
     _autofit_columns(ws)
 
     wb.save(out_path)
     return out_path
+
+
+# Header fill for the inserted pest block — a green nod to the sheet's
+# "CARD COMPLETED GREEN" cue, distinct from the rest of the template.
+_PEST_FILL = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
+_PEST_FONT = Font(bold=True)
+
+
+def _pest_value(raw: str):
+    """Counts are integers in the sheet; write them as numbers when they parse."""
+    try:
+        f = float(raw)
+        return int(f) if f.is_integer() else f
+    except (TypeError, ValueError):
+        return raw
+
+
+def _write_pest_block(ws, fields, crop_code: str, iso_week: str, loc_row: dict[str, int]) -> None:
+    """Insert a colored block of the week's bug-count columns before the lab
+    nutrients. No-op when there's no pest data for the week (so the normal
+    export is byte-for-byte unchanged). Falls back to appending the block at
+    the end if mid-sheet insertion isn't possible on this template.
+    """
+    from app.services import pests  # lazy: avoids any import cycle
+
+    bug_names, by_loc = pests.export_block(crop_code, iso_week)
+    if not bug_names:
+        return
+
+    lab_cols = [
+        f.excel_col for f in fields
+        if f.name not in ("ID", "Location") and page_of(f) == "lab"
+    ]
+    n = len(bug_names)
+    try:
+        insert_at = min(lab_cols) if lab_cols else (ws.max_column + 1)
+        if insert_at <= ws.max_column:
+            ws.insert_cols(insert_at, n)
+        start = insert_at
+    except Exception:
+        # Insertion not possible (e.g. merged cells) — append at the far right.
+        start = ws.max_column + 1
+
+    for i, bug in enumerate(bug_names):
+        c = ws.cell(row=1, column=start + i, value=bug)
+        c.fill = _PEST_FILL
+        c.font = _PEST_FONT
+    for loc_id, bugs in by_loc.items():
+        r = loc_row.get(loc_id)
+        if r is None:
+            continue
+        for i, bug in enumerate(bug_names):
+            if bug in bugs:
+                ws.cell(row=r, column=start + i, value=_pest_value(bugs[bug]))
 
 
 def _autofit_columns(ws, max_width: int = 48, padding: int = 2) -> None:

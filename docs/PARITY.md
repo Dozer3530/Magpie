@@ -27,6 +27,10 @@ service — both columns inherit it for free.
 | Read import file + auto-map columns | `imports.prepare` | both import tabs (browse) | `POST /api/import/upload` |
 | Commit Survey123 import | `imports.commit_survey` | Survey123 Import tab | `POST /api/import/survey` |
 | Commit lab import (+ dup-target guard) | `imports.commit_lab` (`DuplicateTargetError`) | Lab Import tab | `POST /api/import/lab` (409 on dup) |
+| Read Pest ID sheet (crop auto-detect + week list) | `pests.prepare` (`importers/pest.py`) | Pest ID tab (browse) | `POST /api/pest/upload` |
+| Commit a pest week → current week | `pests.commit` | Pest ID tab | `POST /api/pest/commit` |
+| Pest "uploaded" status | `pests.pest_status` | Pest ID tab status line | `GET /api/pest/status` |
+| Pest bug block in export | `pests.export_block` (→ `excel_export._write_pest_block`) | (export) | (export) |
 | Build one crop's package | `exports.build_week_package` | Export tab | `POST /api/export` |
 | Build all crops' package | `exports.build_all` | Export tab | `POST /api/export-all` |
 | Download the zip | (file on disk) | opens folder | `GET /api/export/{week}/download` |

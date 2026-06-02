@@ -418,9 +418,10 @@ const NAV = [
   {id:"overview", n:"02", l:"Week overview"},
   {id:"survey",   n:"03", l:"Survey123 import"},
   {id:"lab",      n:"04", l:"Lab import"},
-  {id:"obs",      n:"05", l:"Observations"},
-  {id:"export",   n:"06", l:"Export"},
-  {id:"trends",   n:"07", l:"Trends"},
+  {id:"pest",     n:"05", l:"Pest ID import"},
+  {id:"obs",      n:"06", l:"Observations"},
+  {id:"export",   n:"07", l:"Export"},
+  {id:"trends",   n:"08", l:"Trends"},
 ];
 
 const STATE = {
@@ -429,6 +430,7 @@ const STATE = {
   activePt:null, obsTab:"field", obsValues:{}, obsImages:[],
   survey:null,   // {token, filename, preview}
   lab:null,      // {token, filename, preview, targets:{idx:loc}}
+  pest:null,     // {token, filename, crop, crop_display, weeks, weekIndex, committed}
 };
 
 // ---------- API ----------
@@ -790,7 +792,54 @@ async function viewLab(){
 }
 
 // ============================================================
-//  VIEW 04 — OBSERVATIONS
+//  VIEW 05 — PEST ID IMPORT (living document)
+// ============================================================
+async function viewPest(){
+  const p = STATE.pest;
+  let status = null;
+  try{ status = await API.get(`/api/pest/status?crop=${STATE.crop}&week=${encodeURIComponent(STATE.week)}`); }catch(e){}
+  const statusLine = (status && status.uploaded)
+    ? `<div class="filechip" style="background:var(--lime);color:#000"><span class="x">▣</span> Uploaded for ${STATE.week} · cards ${status.cards_completed}/${status.total_locations}${status.bug_types.length?` · ${status.bug_types.length} bug type(s)`:" · no bugs"}</div>`
+    : `<div class="note" style="margin-top:8px">No pest data uploaded for <b>${STATE.week}</b> yet.</div>`;
+
+  if(!p){
+    return `
+    <div class="vhead rise"><div class="step">Step 05 · Pest feed</div><h1>Pest ID import</h1>
+      <p>Upload the field's Pest ID sheet (a living document that grows weekly). Magpie auto-detects the crop from the point IDs (M = Canola, L = Corn); you then pick which <b>sheet week</b> to pull, and that slice attaches to <b>${STATE.week}</b>. Only bug types seen that week land in the package — before the lab nutrients.</p></div>
+    <div class="dropzone rise" id="pestdrop" style="animation-delay:.05s">
+      <div class="icon">↧</div><h3>Drop Pest ID sheet · .csv / .xlsx</h3>
+      <div class="hint">or click to browse</div>
+      <input type="file" id="pestfile" accept=".csv,.xlsx,.xls,.xlsm" hidden>
+    </div>
+    ${statusLine}`;
+  }
+
+  const wkOpts = p.weeks.map(w=>{
+    const bugs = w.bug_types.length ? `${w.bug_types.length} bug type(s)` : "no bugs";
+    return `<option value="${w.index}" ${w.index===p.weekIndex?"selected":""}>#${w.index} · ${esc(w.date||"")} · cards ${w.cards_completed}/${w.total} · ${bugs}</option>`;
+  }).join("");
+  const sel = p.weeks.find(w=>w.index===p.weekIndex) || p.weeks[p.weeks.length-1];
+  const bugList = sel && sel.bug_types.length ? sel.bug_types.map(b=>`<span class="src on">${esc(b)}</span>`).join(" ") : '<span class="note">no bugs recorded this week</span>';
+
+  return `
+  <div class="vhead rise"><div class="step">Step 05 · Pest feed</div><h1>Pest ID import</h1>
+    <p>Loaded <b>${esc(p.filename)}</b> · detected crop <b>${esc(p.crop_display)}</b>. Pick the sheet week to attach to <b>${STATE.week}</b>, then commit.</p></div>
+  <div class="dropzone rise" id="pestdrop"><div class="icon">▣</div>
+    <h3>${esc(p.filename)}</h3><div class="hint">${p.weeks.length} weeks in sheet · crop ${esc(p.crop_display)}</div>
+    <input type="file" id="pestfile" accept=".csv,.xlsx,.xls,.xlsm" hidden>
+  </div>
+  <div class="actions rise" style="margin-top:22px">
+    <div class="ctxfield">Sheet week <select id="pestWeek">${wkOpts}</select></div>
+    <button class="btn" id="pestCommit">Commit → ${STATE.week}</button>
+    <span class="note">re-upload to refresh the living document</span>
+  </div>
+  <div class="panel rise"><div class="ph">Bugs in selected week <span class="badge">${sel?sel.cards_completed:0}/${sel?sel.total:0} cards</span></div>
+    <div class="pbody"><div class="srcs" style="margin:6px 0">${bugList}</div></div></div>
+  ${statusLine}`;
+}
+
+// ============================================================
+//  VIEW 06 — OBSERVATIONS
 // ============================================================
 async function ensureSchema(){
   if(!STATE.schemaCache[STATE.crop])
@@ -907,7 +956,7 @@ async function viewObs(){
   const page = STATE.obsTab;
   const secs = sch.sections.filter(s=>s.page===page).map(sectionHtml).join("");
   return `
-  <div class="vhead rise"><div class="step">Step 05 · Review &amp; edit</div><h1>Observations</h1>
+  <div class="vhead rise"><div class="step">Step 06 · Review &amp; edit</div><h1>Observations</h1>
     <p>Everything merged from both feeds for <b>${cap(STATE.crop)} · ${STATE.week}</b>, hand-editable before export. The form is built from the shared schema — the exact sections the desktop renders. Pick a point on the left.</p></div>
   <div class="obswrap rise" style="animation-delay:.05s">
     <div class="ptrail">${rail}</div>
@@ -949,7 +998,7 @@ function viewExport(){
     ["Bundle deliverable",`zip → EarthDaily_${STATE.week}.zip`],
   ];
   return `
-  <div class="vhead rise"><div class="step">Step 06 · Deliverable</div><h1>Export package</h1>
+  <div class="vhead rise"><div class="step">Step 07 · Deliverable</div><h1>Export package</h1>
     <p>Stamp the data into a copy of the template (styling preserved), write a matching GeoPackage, copy the photos, and zip the lot. The same service the desktop Export tab calls — identical output.</p></div>
   <div class="expgrid">
     <div class="runner rise" style="animation-delay:.05s">
@@ -1013,6 +1062,7 @@ async function render(){
     else if(STATE.view==="overview") html=await viewOverview();
     else if(STATE.view==="survey") html=await viewSurvey();
     else if(STATE.view==="lab") html=await viewLab();
+    else if(STATE.view==="pest") html=await viewPest();
     else if(STATE.view==="obs") html=await viewObs();
     else html=viewExport();
     v.innerHTML=html;
@@ -1039,6 +1089,19 @@ function wireUpload(commitHandler){
       render();
     }catch(e){ toast("Upload failed: "+e.message,true); }
   }
+}
+
+async function pestUpload(f){
+  const fd=new FormData(); fd.append("file",f);
+  toast(`Uploading ${f.name}…`);
+  try{
+    const p=await API.upload("/api/pest/upload",fd);
+    const lastIdx = p.weeks.length ? p.weeks[p.weeks.length-1].index : 1;
+    STATE.pest={token:p.token,filename:p.filename||f.name,crop:p.crop,crop_display:p.crop_display,
+                weeks:p.weeks,weekIndex:lastIdx,committed:false};
+    if(p.crop && p.crop!==STATE.crop){ toast(`Detected ${p.crop_display} — switch the crop selector to match before export`); }
+    render();
+  }catch(e){ toast("Upload failed: "+e.message,true); }
 }
 
 function startRename(card, wk){
@@ -1125,6 +1188,27 @@ function wire(){
         STATE.lab.committed=true; STATE.overview=null;
         toast(`Imported ${res.imported} · skipped ${res.skipped_no_target} unassigned, ${res.skipped_empty} empty`);
       }catch(e){ toast(e.message,true); }
+      c.disabled=false;
+    };
+  }
+  if(STATE.view==="pest"){
+    const drop=$("#pestdrop"), file=$("#pestfile");
+    if(drop&&file){
+      drop.onclick=()=>file.click();
+      drop.ondragover=e=>{e.preventDefault();drop.classList.add("hot");};
+      drop.ondragleave=()=>drop.classList.remove("hot");
+      drop.ondrop=e=>{e.preventDefault();drop.classList.remove("hot");if(e.dataTransfer.files[0])pestUpload(e.dataTransfer.files[0]);};
+      file.onchange=()=>{ if(file.files[0]) pestUpload(file.files[0]); };
+    }
+    const ws=$("#pestWeek"); if(ws) ws.onchange=()=>{ STATE.pest.weekIndex=+ws.value; render(); };
+    const c=$("#pestCommit"); if(c) c.onclick=async()=>{
+      c.disabled=true;
+      try{
+        const res=await API.post("/api/pest/commit",{token:STATE.pest.token,week:STATE.week,week_index:STATE.pest.weekIndex});
+        STATE.pest.committed=true;
+        toast(`Pest week ${res.week_label} → ${STATE.week} · ${res.cards_completed} cards${res.bug_types.length?`, ${res.bug_types.length} bug type(s)`:", no bugs"}`);
+        render();
+      }catch(e){ toast("Pest import failed: "+e.message,true); }
       c.disabled=false;
     };
   }

@@ -119,6 +119,23 @@ SHARED_SCHEMA = [
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
     """,
+    # Pest ID feed: a living per-field bug log. Bug types vary week to week,
+    # so counts are stored as a JSON object rather than fixed columns. One row
+    # per (crop, week, location). card_completed drives the in-app "uploaded"
+    # indicator; bugs_json feeds the colored export block.
+    """
+    CREATE TABLE IF NOT EXISTS pest_obs (
+        crop_code      TEXT NOT NULL,
+        iso_week       TEXT NOT NULL,
+        location_id    TEXT NOT NULL,
+        card_completed INTEGER NOT NULL DEFAULT 0,
+        source_date    TEXT,
+        source_week    INTEGER,
+        bugs_json      TEXT NOT NULL DEFAULT '{}',
+        PRIMARY KEY (crop_code, iso_week, location_id),
+        FOREIGN KEY (iso_week) REFERENCES weeks(iso_week) ON DELETE CASCADE
+    )
+    """,
 ]
 
 
@@ -378,6 +395,7 @@ def rename_week(conn: sqlite3.Connection, old: str, new: str) -> None:
             f'UPDATE {table} SET "iso_week" = ? WHERE "iso_week" = ?',
             (new, old),
         )
+    conn.execute("UPDATE pest_obs SET iso_week = ? WHERE iso_week = ?", (new, old))
     conn.execute("DELETE FROM weeks WHERE iso_week = ?", (old,))
 
 
@@ -391,4 +409,55 @@ def list_obs_for_week(
     return list(conn.execute(
         f'SELECT * FROM {table} WHERE "iso_week" = ? ORDER BY "location_id"',
         (iso_week,),
+    ))
+
+
+# ---- Pest ID helpers -------------------------------------------------------
+
+def clear_pest_for_week(conn: sqlite3.Connection, crop_code: str, iso_week: str) -> None:
+    conn.execute(
+        "DELETE FROM pest_obs WHERE crop_code = ? AND iso_week = ?",
+        (crop_code, iso_week),
+    )
+
+
+def upsert_pest_row(
+    conn: sqlite3.Connection,
+    crop_code: str,
+    iso_week: str,
+    location_id: str,
+    card_completed: bool,
+    source_date: str | None,
+    source_week: int | None,
+    bugs_json: str,
+) -> None:
+    conn.execute(
+        """
+        INSERT INTO pest_obs
+            (crop_code, iso_week, location_id, card_completed, source_date, source_week, bugs_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(crop_code, iso_week, location_id) DO UPDATE SET
+            card_completed = excluded.card_completed,
+            source_date    = excluded.source_date,
+            source_week    = excluded.source_week,
+            bugs_json      = excluded.bugs_json
+        """,
+        (crop_code, iso_week, location_id, 1 if card_completed else 0,
+         source_date, source_week, bugs_json),
+    )
+
+
+def list_pest_for_week(
+    conn: sqlite3.Connection,
+    crop_code: str,
+    iso_week: str,
+) -> list[sqlite3.Row]:
+    """All pest rows for a (crop, week), one per location that was imported."""
+    return list(conn.execute(
+        """
+        SELECT * FROM pest_obs
+        WHERE crop_code = ? AND iso_week = ?
+        ORDER BY location_id
+        """,
+        (crop_code, iso_week),
     ))

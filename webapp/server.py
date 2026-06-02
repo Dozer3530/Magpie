@@ -26,6 +26,7 @@ from app.services import exports as exports_service
 from app.services import imports as imports_service
 from app.services import maintenance as maintenance_service
 from app.services import observations as obs_service
+from app.services import pests as pests_service
 from app.services import trends as trends_service
 from app.services import weeks as weeks_service
 from app.services.imports import DuplicateTargetError
@@ -216,6 +217,65 @@ def import_lab(body: LabCommit) -> dict:
     except DuplicateTargetError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
     return serialize.import_result_dict(res)
+
+
+# ---- Pest ID feed ----------------------------------------------------------
+
+@app.post("/api/pest/upload")
+async def pest_upload(file: UploadFile = File(...)) -> dict:
+    """Save the pest CSV, parse it, return a token + the selectable weeks.
+
+    Crop is auto-detected from the M/L point prefix in the file.
+    """
+    suffix = Path(file.filename or "pest").suffix or ".csv"
+    token = uuid.uuid4().hex
+    dest = _UPLOAD_DIR / f"{token}{suffix}"
+    with dest.open("wb") as out:
+        shutil.copyfileobj(file.file, out)
+    try:
+        parsed = pests_service.prepare(dest)
+    except Exception as exc:
+        dest.unlink(missing_ok=True)
+        raise HTTPException(status_code=400, detail=f"Could not read pest file: {exc}")
+    _uploads[token] = dest
+    display = next((c.display_name for c in CROPS if c.code == parsed.crop_code), parsed.crop_code)
+    return {
+        "token": token,
+        "filename": file.filename,
+        "crop": parsed.crop_code,
+        "crop_display": display,
+        "weeks": pests_service.week_choices(parsed),
+    }
+
+
+class PestCommit(BaseModel):
+    token: str
+    week: str          # the app's ISO week to attach the slice to
+    week_index: int    # which sheet-week to extract
+
+
+@app.post("/api/pest/commit")
+def pest_commit(body: PestCommit) -> dict:
+    path = _uploads.get(body.token)
+    if path is None or not path.is_file():
+        raise HTTPException(status_code=404, detail="Upload expired — re-upload the file.")
+    try:
+        res = pests_service.commit(path, body.week, body.week_index)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {
+        "ok": True,
+        "crop": res.crop_code,
+        "week_label": res.week_label,
+        "imported": res.imported,
+        "cards_completed": res.cards_completed,
+        "bug_types": res.bug_types,
+    }
+
+
+@app.get("/api/pest/status")
+def get_pest_status(crop: str, week: str) -> dict:
+    return pests_service.pest_status(crop, week)
 
 
 # ---- Export ----------------------------------------------------------------

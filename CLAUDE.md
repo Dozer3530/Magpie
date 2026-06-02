@@ -21,7 +21,8 @@ have no pending rows. Keep it that way.
 
 Services: `weeks` (CRUD + `rename_week` + `all_weeks_progress`), `observations`
 (`build_form_schema` + load/save), `imports`, `exports` (+ `week_status`),
-`trends` (`trend_series`), `maintenance` (`create_backup`).
+`trends` (`trend_series`), `maintenance` (`create_backup`), `pests`
+(`prepare`/`commit`/`pest_status`/`export_block` — the Pest ID feed).
 
 ## Templates are the source of truth
 `Static Canola Template.xlsx` / `Static Corn Template.xlsx` (repo root): row 1
@@ -61,6 +62,11 @@ real coords), `demo/themes/` (theme gallery).
 - PowerShell single-quoted here-strings break if the message contains `"` —
   keep commit messages free of double quotes.
 - Excel export auto-fits column widths (`_autofit_columns`).
+- Pest ID is a third feed: a living per-field CSV (`<point>_<weekIndex>` IDs,
+  crop from M/L prefix, variable bug columns) stored in `pest_obs` (bugs as
+  JSON). On import you pick the sheet-week → it attaches to the current ISO
+  week. Export inserts a green bug block **before the lab columns, only when
+  that week has bugs** (so normal exports are unchanged).
 
 ## Open actions
 - When the first real PT2R lab file arrives, confirm units for **NO3N / Na /

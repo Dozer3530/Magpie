@@ -184,6 +184,29 @@ def test_survey_import_upload_then_commit(client, canola):
     assert got["values"][n_name] == "4.1"
 
 
+def test_pest_upload_commit_status(client, corn):
+    week = "2026-W22"
+    client.post("/api/weeks", json={"tag": week})
+    csv = (
+        b"person,DATE,ID Number,CARD COMPLETED,Aphid,fly spp.\n"
+        b",June 1,L1_1,TRUE,2,101\n"
+        b",June 1,L2_1,TRUE,,55\n"
+        b",June 8,L1_2,FALSE,,\n"
+    )
+    up = client.post("/api/pest/upload",
+                     files={"file": ("pest.csv", io.BytesIO(csv), "text/csv")}).json()
+    assert up["crop"] == "corn"
+    assert [w["index"] for w in up["weeks"]] == [1, 2]
+
+    res = client.post("/api/pest/commit",
+                      json={"token": up["token"], "week": week, "week_index": 1}).json()
+    assert res["ok"] and res["cards_completed"] == 2
+    assert set(res["bug_types"]) == {"Aphid", "fly spp."}
+
+    st = client.get("/api/pest/status", params={"crop": "corn", "week": week}).json()
+    assert st["uploaded"] is True and st["total_locations"] == 9
+
+
 def test_lab_import_duplicate_target_conflicts(client):
     week = "2026-W24"
     client.post("/api/weeks", json={"tag": week})
