@@ -28,6 +28,7 @@ from app.services import maintenance as maintenance_service
 from app.services import observations as obs_service
 from app.services import pests as pests_service
 from app.services import publish as publish_service
+from app.services import scouting as scouting_service
 from app.services import trends as trends_service
 from app.services import weeks as weeks_service
 from app.services.imports import DuplicateTargetError
@@ -245,6 +246,44 @@ def import_lab(body: LabCommit) -> dict:
     except DuplicateTargetError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
     return serialize.import_result_dict(res)
+
+
+# ---- Scouting (real Survey123 export: GPS join, event slices) --------------
+
+@app.post("/api/scouting/upload")
+async def scouting_upload(file: UploadFile = File(...)) -> dict:
+    """Save the scouting CSV, parse it, return events + assignment previews."""
+    suffix = Path(file.filename or "scout").suffix or ".csv"
+    token = uuid.uuid4().hex
+    dest = _UPLOAD_DIR / f"{token}{suffix}"
+    with dest.open("wb") as out:
+        shutil.copyfileobj(file.file, out)
+    try:
+        prep = scouting_service.prepare(dest)
+    except Exception as exc:
+        dest.unlink(missing_ok=True)
+        raise HTTPException(status_code=400, detail=f"Could not read scouting file: {exc}")
+    _uploads[token] = dest
+    prep["token"] = token
+    prep["filename"] = file.filename
+    return prep
+
+
+class ScoutingCommit(BaseModel):
+    token: str
+    week: str    # the app ISO week to write into
+    date: str    # the scouting event date (YYYY-MM-DD) to extract
+
+
+@app.post("/api/scouting/commit")
+def scouting_commit(body: ScoutingCommit) -> dict:
+    path = _uploads.get(body.token)
+    if path is None or not path.is_file():
+        raise HTTPException(status_code=404, detail="Upload expired — re-upload the file.")
+    try:
+        return scouting_service.commit(path, body.week, body.date)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 # ---- Pest ID feed ----------------------------------------------------------

@@ -24,8 +24,9 @@ service — both columns inherit it for free.
 | Observation form layout | `observations.build_form_schema` | Observations tab (`_rebuild_form`) | `GET /api/form-schema` |
 | Load one location's row | `observations.load` | Observations tab | `GET /api/obs` |
 | Save one location's row | `observations.save` | Observations tab | `PUT /api/obs` |
-| Read import file + auto-map columns | `imports.prepare` | both import tabs (browse) | `POST /api/import/upload` |
-| Commit Survey123 import | `imports.commit_survey` | Survey123 Import tab | `POST /api/import/survey` |
+| Read lab file + auto-map columns | `imports.prepare` | Lab Import tab (browse) | `POST /api/import/upload` |
+| Read scouting export (events + GPS assignment preview) | `scouting.prepare` (`importers/scouting.py`) | Survey123 Import tab (browse) | `POST /api/scouting/upload` |
+| Commit a scouting event (both crops, GPS join) | `scouting.commit` | Survey123 Import tab | `POST /api/scouting/commit` |
 | Commit lab import (+ dup-target guard) | `imports.commit_lab` (`DuplicateTargetError`) | Lab Import tab | `POST /api/import/lab` (409 on dup) |
 | Read Pest ID sheet (crop auto-detect + week list) | `pests.prepare` (`importers/pest.py`) | Pest ID tab (browse) | `POST /api/pest/upload` |
 | Commit a pest week → current week | `pests.commit` | Pest ID tab | `POST /api/pest/commit` |

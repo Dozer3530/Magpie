@@ -1,16 +1,17 @@
-"""Survey123 import tab.
+"""Survey123 scouting import tab — desktop mirror of the web Survey123 view.
 
-Loads a Survey123 CSV/XLSX, auto-maps source columns to the active crop's
-template fields by exact name match, and writes each row into `obs_<crop>`
-for the currently-selected week. The join column from source to location is
-the column the user marks as the location ID (defaults to whichever source
-column auto-mapped to the template's `ID`).
+The real Survey123 export is one cumulative CSV with no point IDs: submissions
+carry only GPS. This tab groups rows into scouting events by date, GPS-joins
+each row to its monitoring point (within `scouting.TOLERANCE_M`), shows the
+full assignment preview, and on Import writes BOTH crops into the currently
+selected week. All logic lives in `app.services.scouting`.
 """
 from __future__ import annotations
 
 from pathlib import Path
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QComboBox,
     QFileDialog,
@@ -18,7 +19,6 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QLabel,
     QMessageBox,
-    QPlainTextEdit,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
@@ -27,25 +27,32 @@ from PySide6.QtWidgets import (
 )
 
 from app import app_settings
-from app.importers.core import LoadedFile
-from app.services import imports as imports_service
+from app.services import scouting as scouting_service
 
 _SETTING_LAST_DIR = "survey_import_last_dir"
+_OK = QColor("#5a8a00")
+_BAD = QColor("#c0392b")
+_DIM = QColor("#888888")
 
 
 class SurveyImportTab(QWidget):
     def __init__(self, main_window) -> None:
         super().__init__(main_window)
         self._main = main_window
-        self._loaded: LoadedFile | None = None
-        self._valid_locations: set[str] = set()
+        self._path: Path | None = None
+        self._prep: dict | None = None
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(8, 8, 8, 8)
 
-        # --- File picker row ----------------------------------------------
+        outer.addWidget(QLabel(
+            "Upload the cumulative scouting export. Rows are joined to monitoring "
+            "points by GPS; pick the scouting event (date) to pull. Importing "
+            "fills BOTH crops for the selected week."
+        ))
+
         file_row = QHBoxLayout()
-        file_row.addWidget(QLabel("Source file:"))
+        file_row.addWidget(QLabel("Scouting file:"))
         self.path_label = QLabel("(none)")
         self.path_label.setStyleSheet("color: gray;")
         file_row.addWidget(self.path_label, 1)
@@ -54,218 +61,148 @@ class SurveyImportTab(QWidget):
         file_row.addWidget(browse_btn)
         outer.addLayout(file_row)
 
-        # --- Mapping config row -------------------------------------------
-        cfg_row = QHBoxLayout()
-        cfg_row.addWidget(QLabel("Source ID column:"))
-        self.id_combo = QComboBox(self)
-        self.id_combo.setMinimumWidth(220)
-        self.id_combo.currentIndexChanged.connect(self._refresh_preview)
-        cfg_row.addWidget(self.id_combo)
-        cfg_row.addStretch(1)
-        outer.addLayout(cfg_row)
+        ev_row = QHBoxLayout()
+        ev_row.addWidget(QLabel("Scouting event:"))
+        self.event_combo = QComboBox(self)
+        self.event_combo.setMinimumWidth(420)
+        self.event_combo.setEnabled(False)
+        self.event_combo.currentIndexChanged.connect(self._refill_table)
+        ev_row.addWidget(self.event_combo)
+        ev_row.addStretch(1)
+        outer.addLayout(ev_row)
 
-        # --- Summary text -------------------------------------------------
-        self.summary = QPlainTextEdit(self)
-        self.summary.setReadOnly(True)
-        self.summary.setMaximumHeight(120)
-        self.summary.setPlaceholderText("Load a file to see the column-mapping summary.")
-        outer.addWidget(self.summary)
+        outer.addWidget(QLabel("Assignment preview (what Import will write):"))
+        self.table = QTableWidget(0, 7, self)
+        self.table.setHorizontalHeaderLabels(
+            ["Time", "Crop", "Point", "Distance", "2nd nearest", "Scouter", "Status"]
+        )
+        self.table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.table.setSelectionMode(QTableWidget.NoSelection)
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+        self.table.verticalHeader().setVisible(False)
+        outer.addWidget(self.table, 1)
 
-        # --- Preview table ------------------------------------------------
-        outer.addWidget(QLabel("Preview (rows that will be imported are highlighted):"))
-        self.preview = QTableWidget(self)
-        self.preview.setEditTriggers(QTableWidget.NoEditTriggers)
-        self.preview.setSelectionMode(QTableWidget.NoSelection)
-        outer.addWidget(self.preview, 1)
-
-        # --- Action row ---------------------------------------------------
         action_row = QHBoxLayout()
         self.status_label = QLabel("")
         self.status_label.setStyleSheet("color: #555;")
         action_row.addWidget(self.status_label, 1)
         self.import_btn = QPushButton("Import into current week")
-        self.import_btn.setDefault(True)
         self.import_btn.setEnabled(False)
         self.import_btn.clicked.connect(self._on_import)
         action_row.addWidget(self.import_btn)
         outer.addLayout(action_row)
 
-        main_window.context_changed.connect(self._on_context_changed)
-        self._on_context_changed()
+        main_window.context_changed.connect(self._update_button)
+        self._update_button()
 
-    # ---- context ----------------------------------------------------------
-
-    def _on_context_changed(self) -> None:
-        crop_code = self._main.current_crop_code()
-        self._valid_locations = set()
-        if crop_code:
-            self._valid_locations = imports_service.valid_locations(crop_code)
-        # Different crop → previous file's mapping is stale. Clear it.
-        if self._loaded:
-            self.summary.setPlainText(
-                "Crop changed — reload the source file to re-map columns to the new crop."
-            )
-            self._loaded = None
-            self.path_label.setText("(none)")
-            self.preview.clear()
-            self.preview.setRowCount(0)
-            self.preview.setColumnCount(0)
-            self.id_combo.clear()
-        self._update_import_button()
-
-    # ---- browse + load ----------------------------------------------------
+    # ---- browse + load ---------------------------------------------------
 
     def _on_browse(self) -> None:
         last_dir = app_settings.get(_SETTING_LAST_DIR, "")
         path_str, _ = QFileDialog.getOpenFileName(
-            self,
-            "Pick Survey123 export",
-            last_dir,
-            "Data files (*.csv *.xlsx *.xls *.xlsm)",
+            self, "Pick scouting export", last_dir, "Data files (*.csv *.xlsx *.xls *.xlsm)"
         )
         if not path_str:
             return
         path = Path(path_str)
         app_settings.set_(_SETTING_LAST_DIR, str(path.parent))
-        self._load(path)
-
-    def _load(self, path: Path) -> None:
-        crop_code = self._main.current_crop_code()
-        if not crop_code:
-            QMessageBox.information(self, "Pick a crop", "Choose a crop first.")
-            return
         try:
-            loaded = imports_service.prepare(path, crop_code)
+            prep = scouting_service.prepare(path)
         except Exception as exc:
-            QMessageBox.critical(self, "Could not read file", f"{exc}")
+            QMessageBox.critical(self, "Could not read scouting file", f"{exc}")
             return
-        self._loaded = loaded
+        if not prep["events"]:
+            QMessageBox.warning(self, "No events", "No dated scouting rows found in that file.")
+            return
+        self._path = path
+        self._prep = prep
         self.path_label.setText(str(path))
         self.path_label.setStyleSheet("color: black;")
 
-        # Populate the ID-column combo with all source columns, defaulting
-        # to whichever one auto-mapped to the template's "ID".
-        self.id_combo.blockSignals(True)
-        self.id_combo.clear()
-        default_idx = -1
-        for i, col in enumerate(loaded.source_cols):
-            self.id_combo.addItem(col, col)
-            if loaded.mapping.matches.get(col) == "ID" and default_idx < 0:
-                default_idx = i
-        if default_idx < 0:
-            # No template "ID" match; try common conventions.
-            for i, col in enumerate(loaded.source_cols):
-                if col.strip().lower() in ("id", "location", "location_id", "site"):
-                    default_idx = i
-                    break
-        self.id_combo.setCurrentIndex(max(default_idx, 0))
-        self.id_combo.blockSignals(False)
-
-        self._render_summary()
-        self._refresh_preview()
-        self._update_import_button()
-
-    # ---- summary + preview -----------------------------------------------
-
-    def _render_summary(self) -> None:
-        if self._loaded is None:
-            self.summary.clear()
-            return
-        m = self._loaded.mapping
-        lines = [
-            f"Rows in file: {self._loaded.row_count}",
-            f"Source columns matched to template: {len(m.matches)}",
-        ]
-        if m.unmatched_source:
-            lines.append("")
-            lines.append("Source columns ignored (no matching template column):")
-            for c in m.unmatched_source:
-                lines.append(f"  - {c}")
-        if m.unmatched_target:
-            # Limit noise — the template has many columns; only show first few.
-            lines.append("")
-            lines.append(
-                f"Template columns not provided by source ({len(m.unmatched_target)}):"
+        self.event_combo.blockSignals(True)
+        self.event_combo.clear()
+        for ev in prep["events"]:
+            crops = " / ".join(f"{n} {c.capitalize()}" for c, n in ev["crop_counts"].items()) or "no crops"
+            scouters = ", ".join(ev["scouters"]) or "?"
+            self.event_combo.addItem(
+                f"{ev['date']} · {ev['n_rows']} rows · {crops} · {scouters}", ev["date"]
             )
-            for c in m.unmatched_target[:10]:
-                lines.append(f"  - {c}")
-            if len(m.unmatched_target) > 10:
-                lines.append(f"  … and {len(m.unmatched_target) - 10} more")
-        self.summary.setPlainText("\n".join(lines))
+        self.event_combo.setCurrentIndex(self.event_combo.count() - 1)  # newest
+        self.event_combo.setEnabled(True)
+        self.event_combo.blockSignals(False)
+        self._refill_table()
+        self._update_button()
 
-    def _refresh_preview(self) -> None:
-        self.preview.clear()
-        self.preview.setRowCount(0)
-        self.preview.setColumnCount(0)
-        if self._loaded is None or self.id_combo.count() == 0:
+    # ---- preview table -----------------------------------------------------
+
+    def _current_event(self) -> dict | None:
+        if not self._prep:
+            return None
+        date = self.event_combo.currentData()
+        for ev in self._prep["events"]:
+            if ev["date"] == date:
+                return ev
+        return None
+
+    def _refill_table(self) -> None:
+        ev = self._current_event()
+        self.table.setRowCount(0)
+        if ev is None:
             return
+        rows = ev["assignments"]
+        self.table.setRowCount(len(rows))
+        for r, a in enumerate(rows):
+            ok = a["status"] == "matched" and not a["superseded"]
+            status = ("superseded (newer row wins)" if a["superseded"]
+                      else "ok" if a["status"] == "matched"
+                      else f"too far ({a['dist_m']} m)" if a["status"] == "too_far"
+                      else "ambiguous — review" if a["status"] == "ambiguous"
+                      else a["status"])
+            second = (f"{a['second_point']} @ {a['second_dist_m']} m"
+                      if a["second_point"] else "—")
+            cells = [
+                a["time"],
+                (a["crop"] or "?").capitalize(),
+                a["point"] or "—",
+                f"{a['dist_m']} m" if a["dist_m"] is not None else "—",
+                second,
+                a["scouter"] or "",
+                status,
+            ]
+            for c, text in enumerate(cells):
+                item = QTableWidgetItem(text)
+                item.setTextAlignment(Qt.AlignCenter if c in (0, 2, 3) else Qt.AlignLeft | Qt.AlignVCenter)
+                if not ok:
+                    item.setForeground(_DIM if a["superseded"] else _BAD)
+                elif c == 2:
+                    item.setForeground(_OK)
+                self.table.setItem(r, c, item)
+        self.status_label.setText(f"{ev['matched']} point(s) will be written.")
 
-        id_col = self.id_combo.currentData()
-        rows = self._loaded.rows
-
-        # Limit preview columns to a useful subset: id + key fields.
-        # Show the id column first, then the first ~6 mapped columns.
-        mapped_cols = [c for c in self._loaded.source_cols if c in self._loaded.mapping.matches]
-        display_cols = [id_col] + [c for c in mapped_cols if c != id_col][:6]
-
-        self.preview.setColumnCount(len(display_cols) + 1)
-        headers = ["Target"] + display_cols
-        self.preview.setHorizontalHeaderLabels(headers)
-        self.preview.setRowCount(len(rows))
-        for r, row in enumerate(rows):
-            id_val = row.get(id_col, "").strip()
-            target = id_val if id_val in self._valid_locations else "(skip)"
-            t_item = QTableWidgetItem(target)
-            if target == "(skip)":
-                t_item.setForeground(Qt.gray)
-            self.preview.setItem(r, 0, t_item)
-            for c, col in enumerate(display_cols, start=1):
-                self.preview.setItem(r, c, QTableWidgetItem(row.get(col, "")))
-        self.preview.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
-        self.preview.resizeColumnsToContents()
-
-    def _update_import_button(self) -> None:
-        ready = bool(self._loaded
-                     and self._main.current_crop_code()
-                     and self._main.current_iso_week()
-                     and self.id_combo.count() > 0)
-        self.import_btn.setEnabled(ready)
+    def _update_button(self) -> None:
+        self.import_btn.setEnabled(bool(self._prep and self._main.current_iso_week()))
         if not self._main.current_iso_week():
             self.status_label.setText("Pick or create a week first.")
-        elif not self._loaded:
-            self.status_label.setText("Pick a source file to start.")
-        else:
-            self.status_label.setText("")
 
-    # ---- import -----------------------------------------------------------
+    # ---- import ------------------------------------------------------------
 
     def _on_import(self) -> None:
-        if self._loaded is None:
-            return
-        crop_code = self._main.current_crop_code()
+        ev = self._current_event()
         iso_week = self._main.current_iso_week()
-        if not (crop_code and iso_week):
-            QMessageBox.information(self, "Import", "Pick a crop and week first.")
+        if ev is None or not iso_week or self._path is None:
             return
-        id_col = self.id_combo.currentData()
-        if not id_col:
-            QMessageBox.information(self, "Import", "Pick the source ID column first.")
+        try:
+            res = scouting_service.commit(self._path, iso_week, ev["date"])
+        except Exception as exc:
+            QMessageBox.critical(self, "Import failed", f"{exc}")
             return
-
-        res = imports_service.commit_survey(self._loaded, crop_code, iso_week, id_col)
-
-        msg_lines = [
-            f"Imported {res.imported} rows into {crop_code} / {iso_week}.",
-            f"Skipped {res.skipped_no_loc} rows whose ID didn't match a known location.",
-            f"Skipped {res.skipped_empty} rows with no mapped values.",
-        ]
-        if res.photos_copied or res.photos_missing:
-            msg_lines.append("")
-            msg_lines.append(f"Photos copied into storage: {res.photos_copied}.")
-            if res.photos_missing:
-                msg_lines.append(
-                    f"Photo references not found near the source file: {res.photos_missing}. "
-                    "Drop them in via the Observations tab when available."
-                )
-        QMessageBox.information(self, "Import complete", "\n".join(msg_lines))
-        self.status_label.setText(f"Last import: {res.imported} rows.")
+        per = ", ".join(f"{c.capitalize()}: {n}" for c, n in res["imported"].items()) or "nothing"
+        lines = [f"Scouting {res['date']} → {iso_week}", f"Imported {per}."]
+        if res["superseded"]:
+            lines.append(f"{res['superseded']} duplicate submission(s) superseded.")
+        if res["skipped"]:
+            lines.append(f"{len(res['skipped'])} row(s) skipped (out of range / unknown).")
+        if res["unmapped_columns"]:
+            lines.append("Unmapped columns: " + ", ".join(res["unmapped_columns"]))
+        QMessageBox.information(self, "Scouting import complete", "\n".join(lines))
+        self.status_label.setText(f"Last import: {per} into {iso_week}.")

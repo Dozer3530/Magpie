@@ -50,6 +50,7 @@ def test_build_form_schema_structure(isolated_db):
         ("field", "Insects", "form"),
         ("field", "Petal test", "form"),
         ("field", "Photos", "images"),
+        ("field", "Notes", "form"),
         ("lab", "Report identifiers", "form"),
         ("lab", "Nutrient panel", "nutrient_table"),
         ("lab", "Nutrient ratios", "ratio_table"),

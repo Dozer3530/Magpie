@@ -23,7 +23,8 @@ Each week you collect data at 9 fixed monitoring points per crop (Canola
 each weekly package:
 
 - **Survey123** field observations — disease presence & severity, TDR soil
-  sensors, insect notes, growth stage, photos.
+  sensors, insect notes, growth stage. Rows carry only GPS; Magpie matches
+  each submission to its monitoring point automatically.
 - **PT2R lab reports** — the full nutrient panel plus sufficiency ratings and
   expected-ratio columns.
 - **Pest ID** — a living per-field bug-count log; you pick which week to pull.
@@ -119,8 +120,12 @@ Both frontends present the same eight views:
    or create a week. Field lands first; Lab and Pest fill in as results arrive.
 2. **Week overview** — for the active crop + week, how many template fields each
    monitoring point carries, plus the Pest ID upload status.
-3. **Survey123 Import** — upload the survey export; columns auto-map to the
-   template by name; photos in a sibling `media/` folder get copied in.
+3. **Survey123 Import** — upload the cumulative scouting export (no point IDs
+   needed: each submission is **GPS-matched to its monitoring point**, within
+   50 m). Pick the scouting event (date), eyeball the assignment preview
+   (point + distance per row), commit — **one commit fills both crops**. The
+   scouts' notes land in the template's `Notes` column; photos are attached by
+   hand in Observations.
 4. **Lab Import** — upload the PT2R `.xls`; assign each lab row to a monitoring
    point (the lab's `SampleID` doesn't map automatically).
 5. **Pest ID Import** — upload the field's living pest sheet. Magpie detects the

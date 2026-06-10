@@ -20,11 +20,12 @@ to it. `docs/PARITY.md` maps every action → service → desktop → web and mu
 have no pending rows. Keep it that way.
 
 Services: `weeks` (CRUD + `rename_week` + `all_weeks_progress`), `observations`
-(`build_form_schema` + load/save), `imports`, `exports` (+ `week_status`),
-`trends` (`trend_series`), `maintenance` (`create_backup`), `pests`
-(`prepare`/`commit`/`pest_status`/`export_block` — the Pest ID feed),
-`publish` (`publish_progress` — shareable self-refreshing progress page to a
-synced folder; auto-runs after each export).
+(`build_form_schema` + load/save), `imports` (lab), `scouting` (the real
+Survey123 feed: `prepare`/`commit` — GPS join, event slices, both crops),
+`exports` (+ `week_status`), `trends` (`trend_series`), `maintenance`
+(`create_backup`), `pests` (`prepare`/`commit`/`pest_status`/`export_block` —
+the Pest ID feed), `publish` (`publish_progress` — shareable self-refreshing
+progress page to a synced folder; auto-runs after each export).
 
 ## Templates are the source of truth
 `Static Canola Template.xlsx` / `Static Corn Template.xlsx` (repo root): row 1
@@ -69,10 +70,16 @@ real coords), `demo/themes/` (theme gallery).
   JSON). On import you pick the sheet-week → it attaches to the current ISO
   week. Export inserts a green bug block **before the lab columns, only when
   that week has bugs** (so normal exports are unchanged).
+- The REAL Survey123 export (`importers/scouting.py`) has NO point IDs — rows
+  are GPS-joined to the nearest stake (50 m tolerance; stakes ≥106 m apart so
+  matches are provably unique). One cumulative file, both crops, events by
+  date; the user picks the event. It comes in TWO header dialects (display
+  aliases vs raw underscore names truncated at ~31 chars) — both handled; the
+  form has a "Scleractinia" typo and the corn template a "Fusaruim" typo
+  (explicit aliases). Free-text notes land in the templates' `Notes` column
+  (added 2026-06; last column of both templates).
 
 ## Open actions
 - When the first real PT2R lab file arrives, confirm units for **NO3N / Na /
   Cl** (% vs ppm) in `UNIT_BY_KEY` (`app/schema.py`). Currently NO3N=ppm,
   Na=%, Cl=%.
-- Day-1: verify the live Survey123 export's column names auto-map (add aliases
-  to the importer if they differ from template headers).

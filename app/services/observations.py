@@ -146,6 +146,10 @@ def build_form_schema(crop_code: str) -> FormSchema:
     if "Images" in by_name:
         sections.append(FormSection("field", "Photos", "images", fields=[by_name["Images"]]))
 
+    # Free-text notes (scouting notes land here via the Survey123 importer).
+    if "Notes" in by_name:
+        sections.append(FormSection("field", "Notes", "form", fields=[by_name["Notes"]]))
+
     # --- LAB PAGE ----------------------------------------------------------
 
     report_fields = [

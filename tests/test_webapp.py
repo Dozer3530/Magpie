@@ -63,6 +63,7 @@ def test_form_schema_section_order(client):
         "Insects",
         "Petal test",
         "Photos",
+        "Notes",
         "Report identifiers",
         "Nutrient panel",
         "Nutrient ratios",
@@ -199,6 +200,30 @@ def test_survey_import_upload_then_commit(client, canola):
 
     got = client.get("/api/obs", params={"crop": "canola", "week": week, "loc": "M2"}).json()
     assert got["values"][n_name] == "4.1"
+
+
+def test_scouting_upload_and_commit(client, canola):
+    from app.schema import read_template_locations
+    loc_id, lat, lon = read_template_locations(canola.template_path)[0]
+    week = "2026-W24"
+    client.post("/api/weeks", json={"tag": week})
+    csv = (
+        "Date &  Time,Canola or Corn?,Canola Crop Growth Stage,Scouters Name,x,y\n"
+        f'6/9/2026 4:05:00 PM,Canola,10 - Cotyledons completely unfold,Christina,{lon},{lat}\n'
+    ).encode()
+    up = client.post("/api/scouting/upload",
+                     files={"file": ("scout.csv", io.BytesIO(csv), "text/csv")}).json()
+    assert up["events"][0]["date"] == "2026-06-09"
+    assert up["events"][0]["matched"] == 1
+    a = up["events"][0]["assignments"][0]
+    assert a["point"] == loc_id and a["status"] == "matched"
+
+    res = client.post("/api/scouting/commit",
+                      json={"token": up["token"], "week": week, "date": "2026-06-09"}).json()
+    assert res["imported"] == {"canola": 1}
+
+    got = client.get("/api/obs", params={"crop": "canola", "week": week, "loc": loc_id}).json()
+    assert got["values"]["Canola_Crop_Growth_Stage"] == "10 - Cotyledons completely unfold"
 
 
 def test_pest_upload_commit_status(client, corn):

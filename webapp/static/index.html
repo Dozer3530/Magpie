@@ -718,41 +718,50 @@ async function viewSurvey(){
   if(!s){
     return `
     <div class="vhead rise"><div class="step">Step 03 · Field feed</div><h1>Survey123 import</h1>
-      <p>Upload the week's Survey123 export. Magpie matches its columns to the <b>${cap(STATE.crop)}</b> template by exact-then-normalized name and joins each row to a monitoring point by the ID column you pick.</p></div>
+      <p>Upload the scouting export (the cumulative Scouting Point CSV). Magpie groups submissions into <b>scouting events by date</b>, joins each row to its monitoring point <b>by GPS</b> (within ${50} m), and fills <b>both crops at once</b>. You pick the event; a full assignment preview shows before anything is written.</p></div>
     <div class="dropzone rise" id="drop" style="animation-delay:.05s">
-      <div class="icon">↧</div><h3>Drop Survey123 export · .xlsx / .csv</h3>
+      <div class="icon">↧</div><h3>Drop scouting export · .csv</h3>
       <div class="hint">or click to browse</div>
       <input type="file" id="file" accept=".csv,.xlsx,.xls,.xlsm" hidden>
     </div>`;
   }
-  const p = s.preview;
-  const matched = Object.entries(p.mapping.matches);
-  const idCol = s.idCol || (s.idCol = pickIdColumn(p));
-  const mapRows = p.source_cols.map(c=>{
-    const tgt = p.mapping.matches[c];
-    return `<tr><td>${esc(c)}</td><td class="map-arrow">→</td>
-      <td>${tgt?esc(tgt):'<span style="color:var(--ink-faint)">(unmapped — not written)</span>'}</td>
-      <td>${tgt?'<span class="tag-auto">auto</span>':'<span class="tag-skip">skip</span>'}</td></tr>`;
+  const ev = s.events.find(e=>e.date===s.date) || s.events[s.events.length-1];
+  const evOpts = s.events.map(e=>{
+    const crops = Object.entries(e.crop_counts).map(([c,n])=>`${n} ${cap(c)}`).join(" / ") || "no crops";
+    return `<option value="${e.date}" ${e.date===ev.date?"selected":""}>${e.date} · ${e.n_rows} rows · ${crops} · ${e.scouters.join(", ")||"?"}</option>`;
   }).join("");
-  const idOpts = p.source_cols.map(c=>`<option value="${esc(c)}" ${c===idCol?"selected":""}>${esc(c)}</option>`).join("");
+  const rows = ev.assignments.map(a=>{
+    const ok = a.status==="matched" && !a.superseded;
+    const pt = ok ? `<b style="background:var(--lime);color:#000;padding:1px 6px">${esc(a.point)}</b>`
+      : a.superseded ? `<span style="color:var(--ink-faint);text-decoration:line-through">${esc(a.point||"")}</span>`
+      : `<span style="color:var(--red)">—</span>`;
+    const st = a.superseded ? "superseded (newer row wins)"
+      : a.status==="matched" ? "ok"
+      : a.status==="too_far" ? `too far (${a.dist_m} m)`
+      : a.status==="ambiguous" ? "ambiguous — review"
+      : a.status;
+    return `<tr><td>${esc(a.time)}</td><td>${esc(cap(a.crop||"?"))}</td><td>${pt}</td>
+      <td>${a.dist_m!=null?a.dist_m+" m":"—"}</td>
+      <td>${a.second_point?esc(a.second_point)+" @ "+a.second_dist_m+" m":"—"}</td>
+      <td>${esc(a.scouter||"")}</td><td>${st}</td></tr>`;
+  }).join("");
   return `
   <div class="vhead rise"><div class="step">Step 03 · Field feed</div><h1>Survey123 import</h1>
-    <p>Loaded <b>${esc(s.filename)}</b>. Confirm the join column, then commit into <b>obs_${STATE.crop} · ${STATE.week}</b>.</p></div>
+    <p>Loaded <b>${esc(s.filename)}</b>. Pick the scouting event, check the assignments, then commit into <b>${STATE.week}</b> — this writes <b>both crops</b> regardless of the crop selector.</p></div>
   <div class="dropzone rise" id="drop"><div class="icon">▣</div>
-    <h3>${esc(s.filename)}</h3><div class="hint">${p.row_count} rows · ${matched.length} columns mapped</div>
-    <div class="filechip"><span class="x">▣</span> ${esc(s.filename)} · ${p.row_count} rows</div>
+    <h3>${esc(s.filename)}</h3><div class="hint">${s.events.length} scouting event(s) in file</div>
     <input type="file" id="file" accept=".csv,.xlsx,.xls,.xlsm" hidden>
   </div>
   <div class="actions rise" style="margin-top:22px">
-    <div class="ctxfield">Source ID column <select id="idCol">${idOpts}</select></div>
-    <button class="btn" id="commit">Commit → obs_${STATE.crop}</button>
-    <span class="note">re-upload to re-map</span>
+    <div class="ctxfield">Event <select id="scoutEvent">${evOpts}</select></div>
+    <button class="btn" id="scoutCommit">Commit ${ev.matched} points → ${STATE.week}</button>
+    <span class="note">GPS-matched · latest submission wins per point</span>
   </div>
   <div class="panel rise">
-    <div class="ph">Column mapping <span class="badge">${matched.length} mapped · ${p.mapping.unmatched_source.length} skipped</span></div>
+    <div class="ph">Assignment preview <span class="badge">${ev.matched} matched</span></div>
     <div class="pbody"><table class="data">
-      <thead><tr><th>Source column</th><th></th><th>Template field</th><th>Status</th></tr></thead>
-      <tbody>${mapRows}</tbody></table></div>
+      <thead><tr><th>Time</th><th>Crop</th><th>Point</th><th>Distance</th><th>2nd nearest</th><th>Scouter</th><th>Status</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>
   </div>`;
 }
 
@@ -1116,6 +1125,18 @@ function wireUpload(commitHandler){
   }
 }
 
+async function scoutUpload(f){
+  const fd=new FormData(); fd.append("file",f);
+  toast(`Uploading ${f.name}…`);
+  try{
+    const p=await API.upload("/api/scouting/upload",fd);
+    if(!p.events.length){ toast("No dated scouting rows found in that file",true); return; }
+    STATE.survey={token:p.token,filename:p.filename||f.name,events:p.events,
+                  date:p.events[p.events.length-1].date,committed:false};
+    render();
+  }catch(e){ toast("Upload failed: "+e.message,true); }
+}
+
 async function pestUpload(f){
   const fd=new FormData(); fd.append("file",f);
   toast(`Uploading ${f.name}…`);
@@ -1198,14 +1219,24 @@ function wire(){
     $("#view").querySelectorAll(".pt").forEach(c=>c.onclick=()=>{STATE.activePt=c.dataset.pt;STATE.view="obs";render();});
   }
   if(STATE.view==="survey"){
-    wireUpload();
-    const idsel=$("#idCol"); if(idsel) idsel.onchange=()=>{STATE.survey.idCol=idsel.value;};
-    const c=$("#commit"); if(c) c.onclick=async()=>{
+    const drop=$("#drop"), file=$("#file");
+    if(drop&&file){
+      drop.onclick=()=>file.click();
+      drop.ondragover=e=>{e.preventDefault();drop.classList.add("hot");};
+      drop.ondragleave=()=>drop.classList.remove("hot");
+      drop.ondrop=e=>{e.preventDefault();drop.classList.remove("hot");if(e.dataTransfer.files[0])scoutUpload(e.dataTransfer.files[0]);};
+      file.onchange=()=>{ if(file.files[0]) scoutUpload(file.files[0]); };
+    }
+    const evsel=$("#scoutEvent"); if(evsel) evsel.onchange=()=>{ STATE.survey.date=evsel.value; render(); };
+    const c=$("#scoutCommit"); if(c) c.onclick=async()=>{
       c.disabled=true;
       try{
-        const res=await API.post("/api/import/survey",{token:STATE.survey.token,crop:STATE.crop,week:STATE.week,id_col:STATE.survey.idCol||pickIdColumn(STATE.survey.preview)});
+        const date=STATE.survey.date || STATE.survey.events[STATE.survey.events.length-1].date;
+        const res=await API.post("/api/scouting/commit",{token:STATE.survey.token,week:STATE.week,date});
         STATE.survey.committed=true; STATE.overview=null;
-        toast(`Imported ${res.imported} · skipped ${res.skipped_no_loc} no-match, ${res.skipped_empty} empty${res.photos_copied?` · ${res.photos_copied} photos`:""}`);
+        const per=Object.entries(res.imported).map(([cr,n])=>`${cap(cr)} ${n}`).join(" · ")||"nothing";
+        const extra=[res.superseded?`${res.superseded} superseded`:"",res.skipped.length?`${res.skipped.length} skipped`:""].filter(Boolean).join(", ");
+        toast(`Scouting ${res.date} → ${STATE.week}: ${per}${extra?` (${extra})`:""}`);
       }catch(e){ toast("Import failed: "+e.message,true); }
       c.disabled=false;
     };
