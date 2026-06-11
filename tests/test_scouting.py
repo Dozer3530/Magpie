@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.importers.scouting import parse_scouting_file
+from app.importers.scouting import parse_scouting_file, _parse_when
 from app.schema import read_template_locations
 from app.services import observations as obs_service
 from app.services import scouting
@@ -12,6 +12,28 @@ from app.services import weeks as weeks_service
 
 def _loc(crop, idx):
     return read_template_locations(crop.template_path)[idx]  # (id, lat, lon)
+
+
+@pytest.mark.parametrize("raw,expect", [
+    ("6/9/2026 15:57", "2026-06-09 15:57"),           # THE live format: US 24h, no secs
+    ("6/9/2026 15:57:30", "2026-06-09 15:57"),        # US 24h with seconds
+    ("4/15/2026 3:18:01 PM", "2026-04-15 15:18"),     # US 12h with seconds
+    ("6/9/2026 4:05 PM", "2026-06-09 16:05"),         # US 12h no seconds
+    ("2026-06-09 16:05:00", "2026-06-09 16:05"),      # plain ISO, space
+    ("2026-06-09T16:05:00", "2026-06-09 16:05"),      # ISO with T
+    ("2026-06-09T16:05:00.000Z", "2026-06-09 16:05"), # ISO + fractional + Z
+    ("2026-06-09T16:05:00+00:00", "2026-06-09 16:05"),# ISO + offset
+])
+def test_parse_when_accepts_every_arcgis_dialect(raw, expect):
+    """Survey123/ArcGIS CSVs stamp timestamps several ways — a format we don't
+    accept silently drops every row and yields the 'no dated rows' error."""
+    dt = _parse_when(raw)
+    assert dt is not None and dt.strftime("%Y-%m-%d %H:%M") == expect
+
+
+def test_parse_when_rejects_junk():
+    assert _parse_when("") is None
+    assert _parse_when("not a date") is None
 
 
 # Header layout mirrors the real export's hazards: duplicate names with

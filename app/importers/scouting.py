@@ -62,7 +62,14 @@ def _is_any_crop_disease(header: str) -> bool:
         return True
     return len(key) >= 10 and any(k.startswith(key) for k in norms)
 
-_DATE_FORMATS = ("%m/%d/%Y %I:%M:%S %p", "%m/%d/%Y %I:%M %p", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M")
+# The live export stamps US M/D/YYYY in 24-HOUR time with no seconds
+# ("6/9/2026 15:57") — list that first; the 12-hour AM/PM and ISO spellings
+# show up in other Survey123 configurations.
+_DATE_FORMATS = (
+    "%m/%d/%Y %H:%M", "%m/%d/%Y %H:%M:%S",
+    "%m/%d/%Y %I:%M:%S %p", "%m/%d/%Y %I:%M %p",
+    "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M",
+)
 
 _SEVERITY_VALUES = {"low": "Low", "medium": "Med", "med": "Med", "high": "High"}
 _SEVERITY_NONE = {"", "no damage", "none", "n/a", "na"}
@@ -188,6 +195,11 @@ class ParsedScouting:
 
 
 def _parse_when(raw: str) -> datetime | None:
+    """Parse a scouting timestamp, tolerant of every dialect ArcGIS/Survey123
+    emits: US `M/D/YYYY h:mm:ss AM/PM`, ISO-8601 (with a `T`, optional
+    fractional seconds and `Z`/offset), plain `YYYY-MM-DD HH:MM[:SS]`, and the
+    feature-service epoch (milliseconds, sometimes seconds). Returns a naive
+    local datetime (we only use its date + a `YYYY-MM-DD HH:MM` string)."""
     raw = raw.strip()
     if not raw:
         return None
@@ -196,6 +208,20 @@ def _parse_when(raw: str) -> datetime | None:
             return datetime.strptime(raw, fmt)
         except ValueError:
             continue
+    # ISO-8601 — handles the `T` separator, fractional seconds, and tz.
+    iso = raw.replace("Z", "+00:00") if raw.endswith("Z") else raw
+    try:
+        return datetime.fromisoformat(iso).replace(tzinfo=None)
+    except ValueError:
+        pass
+    # Epoch timestamp (feature services export numeric millis, sometimes secs).
+    if raw.lstrip("-").isdigit():
+        try:
+            n = int(raw)
+            secs = n / 1000 if abs(n) >= 1_000_000_000_000 else n
+            return datetime.fromtimestamp(secs)
+        except (ValueError, OverflowError, OSError):
+            pass
     return None
 
 
@@ -223,7 +249,9 @@ def parse_scouting_file(path) -> ParsedScouting:
             pairs = [(headers[i], raw[i].strip()) for i in range(min(len(headers), len(raw))) if raw[i].strip()]
             if not pairs:
                 continue
-            when = _parse_when(_get(pairs, "date & time")) or _parse_when(_get(pairs, "creationdate"))
+            when = (_parse_when(_get(pairs, "date & time"))
+                    or _parse_when(_get(pairs, "creationdate"))
+                    or _parse_when(_get(pairs, "editdate")))
             if when is None:
                 skipped_no_date += 1
                 continue
