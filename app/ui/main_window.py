@@ -28,6 +28,7 @@ from app.ui.export_tab import ExportTab
 from app.ui.lab_import_tab import LabImportTab
 from app.ui.observations_tab import ObservationsTab
 from app.ui.pest_import_tab import PestImportTab
+from app.ui.reactive_import_tab import ReactiveImportTab
 from app.ui.survey_import_tab import SurveyImportTab
 from app.ui.trends_tab import TrendsTab
 from app.ui.week_overview_tab import WeekOverviewTab
@@ -54,6 +55,7 @@ class MainWindow(QMainWindow):
         self.overview_tab = WeekOverviewTab(self)
         self.obs_tab = ObservationsTab(self)
         self.survey_tab = SurveyImportTab(self)
+        self.reactive_tab = ReactiveImportTab(self)
         self.lab_tab = LabImportTab(self)
         self.pest_tab = PestImportTab(self)
         self.export_tab = ExportTab(self)
@@ -62,6 +64,7 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self.overview_tab, "Week overview")
         self.tabs.addTab(self.obs_tab, "Observations")
         self.tabs.addTab(self.survey_tab, "Survey123 Import")
+        self.tabs.addTab(self.reactive_tab, "Reactive Import")
         self.tabs.addTab(self.lab_tab, "Lab Import")
         self.tabs.addTab(self.pest_tab, "Pest ID")
         self.tabs.addTab(self.export_tab, "Export")

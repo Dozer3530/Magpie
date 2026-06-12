@@ -29,6 +29,18 @@ from app.schema import Field, FieldKind, read_template_fields
 # Crop answer in the form -> crop code.
 CROP_BY_ANSWER = {"canola": "canola", "corn": "corn"}
 
+# The two FIXED monitoring fields (the `Where are you?` answers that own the
+# permanent M1-M9 / L1-L9 stakes). Every other field value in the same export
+# is a "Reactive" point — a client-scattered, ephemeral location that carries
+# its own GPS and is handled by the separate reactive feed, NOT GPS-joined to a
+# stake. Normalized (lower, whitespace-collapsed) for comparison.
+HOME_FIELDS = {"field 17", "field 18"}
+
+
+def is_home_field(field_value: str) -> bool:
+    """True if this `Where are you?` value is one of the fixed-stake fields."""
+    return _hnorm(field_value) in HOME_FIELDS
+
 # The export interleaves EVERY crop's disease columns in each row (a canola row
 # still carries the corn questions, blank or "No"). Each crop's translator only
 # writes its own diseases; names belonging to any OTHER crop are recognized via
@@ -157,6 +169,15 @@ class ScoutRow:
     lon: float | None
     scouter: str
     pairs: list[tuple[str, str]]   # (normalized header, raw non-empty value)
+
+    @property
+    def field(self) -> str:
+        """The raw `Where are you?` answer (e.g. 'Field 18', 'Field F')."""
+        return _get(self.pairs, "where are you?")
+
+    @property
+    def is_home(self) -> bool:
+        return is_home_field(self.field)
 
 
 @dataclass

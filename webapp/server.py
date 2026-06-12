@@ -28,6 +28,7 @@ from app.services import maintenance as maintenance_service
 from app.services import observations as obs_service
 from app.services import pests as pests_service
 from app.services import publish as publish_service
+from app.services import reactive as reactive_service
 from app.services import scouting as scouting_service
 from app.services import trends as trends_service
 from app.services import weeks as weeks_service
@@ -282,6 +283,44 @@ def scouting_commit(body: ScoutingCommit) -> dict:
         raise HTTPException(status_code=404, detail="Upload expired — re-upload the file.")
     try:
         return scouting_service.commit(path, body.week, body.date)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+# ---- Reactive feed (client-scattered points, non-home fields) --------------
+
+@app.post("/api/reactive/upload")
+async def reactive_upload(file: UploadFile = File(...)) -> dict:
+    """Save the CSV, return events + the reactive (non-home) point previews."""
+    suffix = Path(file.filename or "scout").suffix or ".csv"
+    token = uuid.uuid4().hex
+    dest = _UPLOAD_DIR / f"{token}{suffix}"
+    with dest.open("wb") as out:
+        shutil.copyfileobj(file.file, out)
+    try:
+        prep = reactive_service.prepare(dest)
+    except Exception as exc:
+        dest.unlink(missing_ok=True)
+        raise HTTPException(status_code=400, detail=f"Could not read scouting file: {exc}")
+    _uploads[token] = dest
+    prep["token"] = token
+    prep["filename"] = file.filename
+    return prep
+
+
+class ReactiveCommit(BaseModel):
+    token: str
+    week: str    # the app ISO week to write into
+    date: str    # the scouting event date (YYYY-MM-DD) to extract
+
+
+@app.post("/api/reactive/commit")
+def reactive_commit(body: ReactiveCommit) -> dict:
+    path = _uploads.get(body.token)
+    if path is None or not path.is_file():
+        raise HTTPException(status_code=404, detail="Upload expired — re-upload the file.")
+    try:
+        return reactive_service.commit(path, body.week, body.date)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 

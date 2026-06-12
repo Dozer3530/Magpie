@@ -136,6 +136,25 @@ SHARED_SCHEMA = [
         FOREIGN KEY (iso_week) REFERENCES weeks(iso_week) ON DELETE CASCADE
     )
     """,
+    # "Reactive" feed: client-scattered points in non-home fields. Ephemeral
+    # locations (no fixed stake), so the point carries its own GPS and survey
+    # values (stored as JSON like pest_obs). Identity = (crop, week, field,
+    # capture time, coords); the display ID (F1, F2...) is DERIVED from
+    # chronological order per field, never stored. Survey123-only — no lab data.
+    """
+    CREATE TABLE IF NOT EXISTS reactive_obs (
+        crop_code   TEXT NOT NULL,
+        iso_week    TEXT NOT NULL,
+        field       TEXT NOT NULL,
+        when_iso    TEXT NOT NULL,
+        lat         REAL,
+        lon         REAL,
+        source_date TEXT,
+        values_json TEXT NOT NULL DEFAULT '{}',
+        PRIMARY KEY (crop_code, iso_week, field, when_iso, lat, lon),
+        FOREIGN KEY (iso_week) REFERENCES weeks(iso_week) ON DELETE CASCADE
+    )
+    """,
 ]
 
 
@@ -396,6 +415,7 @@ def rename_week(conn: sqlite3.Connection, old: str, new: str) -> None:
             (new, old),
         )
     conn.execute("UPDATE pest_obs SET iso_week = ? WHERE iso_week = ?", (new, old))
+    conn.execute("UPDATE reactive_obs SET iso_week = ? WHERE iso_week = ?", (new, old))
     conn.execute("DELETE FROM weeks WHERE iso_week = ?", (old,))
 
 
@@ -460,4 +480,62 @@ def list_pest_for_week(
         ORDER BY location_id
         """,
         (crop_code, iso_week),
+    ))
+
+
+# ---- Reactive helpers ------------------------------------------------------
+
+def upsert_reactive_row(
+    conn: sqlite3.Connection,
+    crop_code: str,
+    iso_week: str,
+    field: str,
+    when_iso: str,
+    lat: float | None,
+    lon: float | None,
+    source_date: str | None,
+    values_json: str,
+) -> None:
+    """Upsert one reactive point, keyed by (crop, week, field, time, coords).
+
+    Re-importing the same event overwrites in place; a later event in the same
+    week accumulates (different `when_iso`). The display ID is derived later.
+    """
+    conn.execute(
+        """
+        INSERT INTO reactive_obs
+            (crop_code, iso_week, field, when_iso, lat, lon, source_date, values_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(crop_code, iso_week, field, when_iso, lat, lon) DO UPDATE SET
+            source_date = excluded.source_date,
+            values_json = excluded.values_json
+        """,
+        (crop_code, iso_week, field, when_iso, lat, lon, source_date, values_json),
+    )
+
+
+def list_reactive_for_week(
+    conn: sqlite3.Connection,
+    crop_code: str,
+    iso_week: str,
+) -> list[sqlite3.Row]:
+    """Reactive points for a (crop, week), oldest first."""
+    return list(conn.execute(
+        """
+        SELECT * FROM reactive_obs
+        WHERE crop_code = ? AND iso_week = ?
+        ORDER BY when_iso, lat, lon
+        """,
+        (crop_code, iso_week),
+    ))
+
+
+def list_reactive_all(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    """Every reactive point across all weeks/crops, oldest first.
+
+    Feeds the per-field chronological numbering (F1, F2...), which spans weeks
+    and both crops, so the caller needs the whole set.
+    """
+    return list(conn.execute(
+        "SELECT * FROM reactive_obs ORDER BY when_iso, lat, lon"
     ))

@@ -112,7 +112,7 @@ byte-equivalent packages because both call the same `app/services/` layer.
 
 ## The weekly workflow
 
-Both frontends present the same eight views:
+Both frontends present the same nine views:
 
 1. **Weeks** — the multi-week dashboard. Every week with three completeness
    tracks per crop: **Field** (Survey123), **Lab** (PT2R), and **Pest** (cards
@@ -126,22 +126,30 @@ Both frontends present the same eight views:
    (point + distance per row), commit — **one commit fills both crops**. The
    scouts' notes land in the template's `Notes` column; photos are attached by
    hand in Observations.
-4. **Lab Import** — upload the PT2R `.xls`; assign each lab row to a monitoring
+4. **Reactive Import** — same scouting export, but for the client's **scattered
+   "reactive" points** in fields *other* than the two fixed ones (Field 17 /
+   Field 18). These aren't fixed stakes — each point keeps **its own GPS** from
+   the CSV and is numbered per field (`F1, F2…`), continuing where that field
+   left off in earlier weeks. Survey123 data only; exports its own
+   `Reactive_<Crop>` files into the same weekly zip.
+5. **Lab Import** — upload the PT2R `.xls`; assign each lab row to a monitoring
    point (the lab's `SampleID` doesn't map automatically).
-5. **Pest ID Import** — upload the field's living pest sheet. Magpie detects the
+6. **Pest ID Import** — upload the field's living pest sheet. Magpie detects the
    crop from the point IDs (`M`=Canola, `L`=Corn); you pick which **sheet week**
    to pull and it attaches to the current week. Only the bug types seen that
    week land in the package.
-6. **Observations** — everything merged from the feeds, hand-editable before
+7. **Observations** — everything merged from the feeds, hand-editable before
    export, split into Field / Lab sub-tabs. Attach extra photos here.
-7. **Export** — produces the deliverable in `exports/<week>/`:
+8. **Export** — produces the deliverable in `exports/<week>/`:
    - `<Crop>_<week>.xlsx` — the template, filled in (styling preserved, columns
      auto-sized; a colored pest block sits before the lab nutrients when bugs
      were recorded that week)
    - `<Crop>_<week>.gpkg` — the same data as a Point layer (EPSG:4326)
+   - `Reactive_<Crop>_<week>.xlsx` / `.gpkg` — the reactive points (only when a
+     week has any; Survey123 columns only, no lab)
    - `images/<crop>/<loc>/…` — the photo files
    - `EarthDaily_<week>.zip` — the one-file deliverable
-8. **Trends** — week-over-week, field-average or per-point, with a category
+9. **Trends** — week-over-week, field-average or per-point, with a category
    picker: soil readings, disease & growth, nutrients, ratios, and pest counts.
 
 The `Images` column in the exported `.xlsx` becomes a `HYPERLINK` formula — the

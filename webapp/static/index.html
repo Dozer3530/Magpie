@@ -418,11 +418,12 @@ const NAV = [
   {id:"weeks",    n:"01", l:"Weeks"},
   {id:"overview", n:"02", l:"Week overview"},
   {id:"survey",   n:"03", l:"Survey123 import"},
-  {id:"lab",      n:"04", l:"Lab import"},
-  {id:"pest",     n:"05", l:"Pest ID import"},
-  {id:"obs",      n:"06", l:"Observations"},
-  {id:"export",   n:"07", l:"Export"},
-  {id:"trends",   n:"08", l:"Trends"},
+  {id:"reactive", n:"04", l:"Reactive import"},
+  {id:"lab",      n:"05", l:"Lab import"},
+  {id:"pest",     n:"06", l:"Pest ID import"},
+  {id:"obs",      n:"07", l:"Observations"},
+  {id:"export",   n:"08", l:"Export"},
+  {id:"trends",   n:"09", l:"Trends"},
 ];
 
 const STATE = {
@@ -430,6 +431,7 @@ const STATE = {
   schemaCache:{}, overview:null, trendLoc:"", trendCat:"soil",
   activePt:null, obsTab:"field", obsValues:{}, obsImages:[],
   survey:null,   // {token, filename, preview}
+  reactive:null, // {token, filename, events, date, committed}
   lab:null,      // {token, filename, preview, targets:{idx:loc}}
   pest:null,     // {token, filename, crop, crop_display, weeks, weekIndex, committed}
 };
@@ -766,7 +768,53 @@ async function viewSurvey(){
 }
 
 // ============================================================
-//  VIEW 03 — LAB IMPORT
+//  VIEW 04 — REACTIVE IMPORT (client-scattered points)
+// ============================================================
+async function viewReactive(){
+  const s = STATE.reactive;
+  if(!s){
+    return `
+    <div class="vhead rise"><div class="step">Step 04 · Reactive feed</div><h1>Reactive import</h1>
+      <p>Same scouting export — this pulls the <b>scattered "reactive" points</b> in fields other than the two fixed ones (Field 17 / Field 18). Each point keeps <b>its own GPS</b> from the CSV (no stake match) and is numbered per field (<b>F1, F2…</b>), continuing where a field left off. Survey123 data only — no lab.</p></div>
+    <div class="dropzone rise" id="drop" style="animation-delay:.05s">
+      <div class="icon">↧</div><h3>Drop scouting export · .csv</h3>
+      <div class="hint">or click to browse</div>
+      <input type="file" id="file" accept=".csv,.xlsx,.xls,.xlsm" hidden>
+    </div>`;
+  }
+  const ev = s.events.find(e=>e.date===s.date) || s.events[s.events.length-1];
+  const evOpts = s.events.map(e=>{
+    const crops = Object.entries(e.crop_counts).map(([c,n])=>`${n} ${cap(c)}`).join(" / ") || "no points";
+    return `<option value="${e.date}" ${e.date===ev.date?"selected":""}>${e.date} · ${e.n_rows} reactive · ${crops} · ${(e.fields||[]).join(", ")||"—"}</option>`;
+  }).join("");
+  const rows = ev.assignments.map(a=>{
+    const pt = `<b style="background:var(--lime);color:#000;padding:1px 6px">${esc(a.point)}</b>`;
+    return `<tr><td>${esc(a.time)}</td><td>${esc(a.field)}</td><td>${esc(cap(a.crop||"?"))}</td><td>${pt}</td>
+      <td>${a.lat}, ${a.lon}</td><td>${esc(a.scouter||"")}</td></tr>`;
+  }).join("");
+  const total = ev.assignments.length;
+  return `
+  <div class="vhead rise"><div class="step">Step 04 · Reactive feed</div><h1>Reactive import</h1>
+    <p>Loaded <b>${esc(s.filename)}</b>. Pick the event, check the points + their assigned IDs, then commit into <b>${STATE.week}</b> — both crops, all non-home fields.</p></div>
+  <div class="dropzone rise" id="drop"><div class="icon">▣</div>
+    <h3>${esc(s.filename)}</h3><div class="hint">${s.events.length} event(s) with reactive points</div>
+    <input type="file" id="file" accept=".csv,.xlsx,.xls,.xlsm" hidden>
+  </div>
+  <div class="actions rise" style="margin-top:22px">
+    <div class="ctxfield">Event <select id="reactEvent">${evOpts}</select></div>
+    <button class="btn" id="reactCommit">Commit ${total} point${total===1?"":"s"} → ${STATE.week}</button>
+    <span class="note">numbered per field · continues across weeks</span>
+  </div>
+  <div class="panel rise">
+    <div class="ph">Reactive points <span class="badge">${total} point${total===1?"":"s"}</span></div>
+    <div class="pbody"><table class="data">
+      <thead><tr><th>Time</th><th>Field</th><th>Crop</th><th>Point</th><th>Lat / Lon</th><th>Scouter</th></tr></thead>
+      <tbody>${rows||`<tr><td colspan="6" style="color:var(--ink-faint)">No reactive points in this event — every row is a fixed home field.</td></tr>`}</tbody></table></div>
+  </div>`;
+}
+
+// ============================================================
+//  VIEW 05 — LAB IMPORT
 // ============================================================
 function labDisplayCols(p){
   const pri = ["sampleid","reportdate","reportno","labno","lab_no.","lab_no"];
@@ -1095,6 +1143,7 @@ async function render(){
     else if(STATE.view==="trends") html=await viewTrends();
     else if(STATE.view==="overview") html=await viewOverview();
     else if(STATE.view==="survey") html=await viewSurvey();
+    else if(STATE.view==="reactive") html=await viewReactive();
     else if(STATE.view==="lab") html=await viewLab();
     else if(STATE.view==="pest") html=await viewPest();
     else if(STATE.view==="obs") html=await viewObs();
@@ -1133,6 +1182,19 @@ async function scoutUpload(f){
     if(!p.events.length){ toast("No dated scouting rows found in that file",true); return; }
     STATE.survey={token:p.token,filename:p.filename||f.name,events:p.events,
                   date:p.events[p.events.length-1].date,committed:false};
+    render();
+  }catch(e){ toast("Upload failed: "+e.message,true); }
+}
+
+async function reactiveUpload(f){
+  const fd=new FormData(); fd.append("file",f);
+  toast(`Uploading ${f.name}…`);
+  try{
+    const p=await API.upload("/api/reactive/upload",fd);
+    const withPts=p.events.filter(e=>e.n_rows>0);
+    if(!withPts.length){ toast("No reactive points in that file (every row is a fixed home field)",true); return; }
+    STATE.reactive={token:p.token,filename:p.filename||f.name,events:p.events,
+                    date:withPts[withPts.length-1].date,committed:false};
     render();
   }catch(e){ toast("Upload failed: "+e.message,true); }
 }
@@ -1237,6 +1299,29 @@ function wire(){
         const per=Object.entries(res.imported).map(([cr,n])=>`${cap(cr)} ${n}`).join(" · ")||"nothing";
         const extra=[res.superseded?`${res.superseded} superseded`:"",res.skipped.length?`${res.skipped.length} skipped`:""].filter(Boolean).join(", ");
         toast(`Scouting ${res.date} → ${STATE.week}: ${per}${extra?` (${extra})`:""}`);
+      }catch(e){ toast("Import failed: "+e.message,true); }
+      c.disabled=false;
+    };
+  }
+  if(STATE.view==="reactive"){
+    const drop=$("#drop"), file=$("#file");
+    if(drop&&file){
+      drop.onclick=()=>file.click();
+      drop.ondragover=e=>{e.preventDefault();drop.classList.add("hot");};
+      drop.ondragleave=()=>drop.classList.remove("hot");
+      drop.ondrop=e=>{e.preventDefault();drop.classList.remove("hot");if(e.dataTransfer.files[0])reactiveUpload(e.dataTransfer.files[0]);};
+      file.onchange=()=>{ if(file.files[0]) reactiveUpload(file.files[0]); };
+    }
+    const evsel=$("#reactEvent"); if(evsel) evsel.onchange=()=>{ STATE.reactive.date=evsel.value; render(); };
+    const c=$("#reactCommit"); if(c) c.onclick=async()=>{
+      c.disabled=true;
+      try{
+        const date=STATE.reactive.date || STATE.reactive.events[STATE.reactive.events.length-1].date;
+        const res=await API.post("/api/reactive/commit",{token:STATE.reactive.token,week:STATE.week,date});
+        STATE.reactive.committed=true; STATE.overview=null;
+        const per=Object.entries(res.imported).map(([cr,n])=>`${cap(cr)} ${n}`).join(" · ")||"nothing";
+        const extra=[res.fields.length?res.fields.join(", "):"",res.skipped.length?`${res.skipped.length} skipped`:""].filter(Boolean).join(" · ");
+        toast(`Reactive ${res.date} → ${STATE.week}: ${per}${extra?` (${extra})`:""}`);
       }catch(e){ toast("Import failed: "+e.message,true); }
       c.disabled=false;
     };

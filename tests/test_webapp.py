@@ -208,8 +208,8 @@ def test_scouting_upload_and_commit(client, canola):
     week = "2026-W24"
     client.post("/api/weeks", json={"tag": week})
     csv = (
-        "Date &  Time,Canola or Corn?,Canola Crop Growth Stage,Scouters Name,x,y\n"
-        f'6/9/2026 4:05:00 PM,Canola,10 - Cotyledons completely unfold,Christina,{lon},{lat}\n'
+        "Date &  Time,Where are you?,Canola or Corn?,Canola Crop Growth Stage,Scouters Name,x,y\n"
+        f'6/9/2026 4:05:00 PM,Field 18,Canola,10 - Cotyledons completely unfold,Christina,{lon},{lat}\n'
     ).encode()
     up = client.post("/api/scouting/upload",
                      files={"file": ("scout.csv", io.BytesIO(csv), "text/csv")}).json()
@@ -224,6 +224,27 @@ def test_scouting_upload_and_commit(client, canola):
 
     got = client.get("/api/obs", params={"crop": "canola", "week": week, "loc": loc_id}).json()
     assert got["values"]["Canola_Crop_Growth_Stage"] == "10 - Cotyledons completely unfold"
+
+
+def test_reactive_upload_and_commit(client, canola):
+    week = "2026-W24"
+    client.post("/api/weeks", json={"tag": week})
+    csv = (
+        "Date &  Time,Where are you?,Canola or Corn?,Canola Crop Growth Stage,#1 TDR - SOIL MOISTURE,x,y\n"
+        "6/9/2026 4:20:00 PM,Field F,Canola,10 - x,31.0,-114.20,51.60\n"
+        "6/9/2026 4:35:00 PM,Field F,Canola,10 - x,28.0,-114.21,51.61\n"
+        "6/9/2026 4:05:00 PM,Field 18,Canola,10 - x,27.0,-114.017,51.773\n"  # home -> ignored
+    ).encode()
+    up = client.post("/api/reactive/upload",
+                     files={"file": ("scout.csv", io.BytesIO(csv), "text/csv")}).json()
+    ev = up["events"][0]
+    assert ev["n_rows"] == 2 and ev["fields"] == ["Field F"]
+    assert [a["point"] for a in ev["assignments"]] == ["F1", "F2"]
+
+    res = client.post("/api/reactive/commit",
+                      json={"token": up["token"], "week": week, "date": "2026-06-09"}).json()
+    assert res["imported"] == {"canola": 2}
+    assert res["fields"] == ["Field F"]
 
 
 def test_pest_upload_commit_status(client, corn):

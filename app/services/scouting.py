@@ -67,9 +67,14 @@ def _assign(event: ScoutEvent, locs_by_crop: dict) -> list[dict]:
             "second_dist_m": None,
             "status": "matched",
             "superseded": False,
+            "field": r.field,
             "_row": r,
         }
-        if r.crop_code is None:
+        if not r.is_home:
+            # Belongs to the Reactive feed (client-scattered point) — never
+            # GPS-matched to a fixed stake here. Keeps the two feeds disjoint.
+            a["status"] = "other_field"
+        elif r.crop_code is None:
             a["status"] = "unknown_crop"
         elif r.lat is None or r.lon is None:
             a["status"] = "no_coords"
@@ -147,6 +152,8 @@ def commit(path, iso_week: str, day_iso: str) -> dict:
 
     with connect() as conn:
         for a in assignments:
+            if a["status"] == "other_field":
+                continue  # reactive point — not this feed's job, not a problem
             if a["superseded"]:
                 superseded += 1
                 continue

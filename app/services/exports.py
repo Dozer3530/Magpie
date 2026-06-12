@@ -101,6 +101,29 @@ def _export_crop(crop_code: str, iso_week: str, out_dir: Path) -> list[Path]:
     return [xlsx_path, gpkg_path]
 
 
+def _export_reactive(iso_week: str, out_dir: Path) -> list[Path]:
+    """Write Reactive_<Crop> xlsx+gpkg for any crop with reactive points this
+    week, into the SAME week folder so they land in the zip. No reactive data
+    for a crop → no files (the normal package is unchanged)."""
+    from app.exporters.reactive_excel import export_reactive_excel
+    from app.exporters.reactive_excel import export_filename as rx_xlsx_name
+    from app.exporters.reactive_gpkg import export_reactive_gpkg
+    from app.exporters.reactive_gpkg import export_filename as rx_gpkg_name
+    from app.services import reactive as reactive_service
+
+    produced: list[Path] = []
+    for crop_cfg in CROPS:
+        if not reactive_service.has_reactive(crop_cfg.code, iso_week):
+            continue
+        out_dir.mkdir(parents=True, exist_ok=True)
+        xlsx_path = out_dir / rx_xlsx_name(crop_cfg.code, iso_week)
+        gpkg_path = out_dir / rx_gpkg_name(crop_cfg.code, iso_week)
+        export_reactive_excel(crop_cfg.code, iso_week, xlsx_path)
+        export_reactive_gpkg(crop_cfg.code, iso_week, gpkg_path)
+        produced += [xlsx_path, gpkg_path]
+    return produced
+
+
 def _zip_week(iso_week: str) -> Path | None:
     """Bundle everything in the week folder into EarthDaily_<week>.zip.
 
@@ -151,6 +174,10 @@ def build_week_package(crop_code: str, iso_week: str) -> ExportResult:
         res.produced.extend(_export_crop(crop_code, iso_week, out_dir))
     except Exception as exc:
         res.errors.append((crop_code, f"{type(exc).__name__}: {exc}"))
+    try:
+        res.produced.extend(_export_reactive(iso_week, out_dir))
+    except Exception as exc:
+        res.errors.append(("reactive", f"{type(exc).__name__}: {exc}"))
     if res.produced:
         res.zip_path = _zip_week(iso_week)
         if res.zip_path:
@@ -173,6 +200,10 @@ def build_all(iso_week: str) -> ExportResult:
             res.produced.extend(_export_crop(crop_cfg.code, iso_week, out_dir))
         except Exception as exc:
             res.errors.append((crop_cfg.code, f"{type(exc).__name__}: {exc}"))
+    try:
+        res.produced.extend(_export_reactive(iso_week, out_dir))
+    except Exception as exc:
+        res.errors.append(("reactive", f"{type(exc).__name__}: {exc}"))
     if res.produced:
         res.zip_path = _zip_week(iso_week)
         if res.zip_path:

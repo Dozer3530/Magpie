@@ -55,9 +55,12 @@ HEADER = (
 
 
 def _row(when, scouter, crop, lat, lon, **kw):
+    # Default to the crop's fixed home field so the row GPS-matches a stake;
+    # tests that exercise the Reactive feed pass where="Field F" explicitly.
+    home = "Field 18" if crop.lower() == "canola" else "Field 17"
     cols = {
         "objectid": "1", "when": when, "scouter": scouter,
-        "where1": kw.get("where", "Field X"), "where2": "",
+        "where1": kw.get("where", home), "where2": "",
         "crop": crop,
         "canola_gs": kw.get("canola_gs", ""), "corn_gs": kw.get("corn_gs", ""),
         "moist1": kw.get("moist1", ""), "temp1": kw.get("temp1", ""),

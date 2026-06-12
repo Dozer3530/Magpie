@@ -22,6 +22,8 @@ have no pending rows. Keep it that way.
 Services: `weeks` (CRUD + `rename_week` + `all_weeks_progress`), `observations`
 (`build_form_schema` + load/save), `imports` (lab), `scouting` (the real
 Survey123 feed: `prepare`/`commit` — GPS join, event slices, both crops),
+`reactive` (`prepare`/`commit`/`week_points` — the client-scattered "reactive"
+points in non-home fields; CSV-supplied locations, per-field numbering),
 `exports` (+ `week_status`), `trends` (`trend_series`), `maintenance`
 (`create_backup`), `pests` (`prepare`/`commit`/`pest_status`/`export_block` —
 the Pest ID feed), `publish` (`publish_progress` — shareable self-refreshing
@@ -36,7 +38,7 @@ Add a crop = drop a template + `app/growth_stages/<crop>.py` + a `CropConfig`
 in `app/crops.py`. No other code changes.
 
 ## Commands
-- Tests: `python -m pytest -q` (57 tests; `tests/conftest.py` `isolated_db`
+- Tests: `python -m pytest -q` (99 tests; `tests/conftest.py` `isolated_db`
   fixture monkeypatches `db.DB_PATH` / `image_storage.IMAGES_ROOT` into tmp).
 - Run web: `python -m webapp` · Run desktop: `python -m app`
 - Back up the DB: `backup.bat` or `python -m app.services.maintenance`
@@ -53,7 +55,7 @@ in `app/crops.py`. No other code changes.
   `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`.
 - `gh` CLI is not on PATH — use `"C:\Program Files\GitHub CLI\gh.exe"`.
   Git identity: Dozer3530 / zachkom@telus.net. Repo: github.com/Dozer3530/Magpie
-  (private). Current release: **v1.3.1** (Latest).
+  (private). Current release: **v1.4.0** (Latest).
 
 ## Local-only (git-ignored, keep out of commits)
 `data/` (DB, photos, backups), `exports/`, `sample_imports/` (fake CSVs carry
@@ -78,6 +80,21 @@ real coords), `demo/themes/` (theme gallery).
   form has a "Scleractinia" typo and the corn template a "Fusaruim" typo
   (explicit aliases). Free-text notes land in the templates' `Notes` column
   (added 2026-06; last column of both templates).
+- "Reactive" feed (`services/reactive.py`): the SAME cumulative CSV also carries
+  client-scattered one-off points in non-home fields. `importers/scouting.py`
+  has `HOME_FIELDS = {field 17, field 18}` + `ScoutRow.field`; rows are
+  partitioned by field name — home → scouting (GPS-joined to stakes, non-home
+  rows get status `other_field`), everything else → reactive. Reactive points
+  keep their OWN CSV lat/lon (no stake match), are Survey123-only (no lab), and
+  store in `reactive_obs` (values as JSON). The display ID (`F1, F2…`) is
+  DERIVED from chronological order per field (spans weeks + both crops), so a
+  later batch continues the count and re-imports are idempotent. Templates are
+  the lighter `Reactive <Crop> Template.xlsx` (Static minus lab columns + a
+  `Field` column; rebuild via `tools/build_reactive_templates.py`). Export
+  writes `Reactive_<Crop>_<week>.xlsx`/`.gpkg` into the SAME week folder (so the
+  zip bundles them) ONLY when the week has reactive points — so normal exports
+  are byte-unchanged. Reactive is intentionally excluded from Trends + the Weeks
+  dashboard (ephemeral, no week-over-week identity).
 
 ## Open actions
 - When the first real PT2R lab file arrives, confirm units for **NO3N / Na /

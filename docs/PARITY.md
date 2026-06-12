@@ -27,6 +27,9 @@ service — both columns inherit it for free.
 | Read lab file + auto-map columns | `imports.prepare` | Lab Import tab (browse) | `POST /api/import/upload` |
 | Read scouting export (events + GPS assignment preview) | `scouting.prepare` (`importers/scouting.py`) | Survey123 Import tab (browse) | `POST /api/scouting/upload` |
 | Commit a scouting event (both crops, GPS join) | `scouting.commit` | Survey123 Import tab | `POST /api/scouting/commit` |
+| Read reactive points (non-home fields, F-numbered preview) | `reactive.prepare` | Reactive Import tab (browse) | `POST /api/reactive/upload` |
+| Commit a reactive event (both crops, CSV locations) | `reactive.commit` (`reactive_obs`) | Reactive Import tab | `POST /api/reactive/commit` |
+| Reactive export files (own xlsx+gpkg, same week zip) | `exports._export_reactive` (`reactive_excel`/`reactive_gpkg`) | (export) | (export) |
 | Commit lab import (+ dup-target guard) | `imports.commit_lab` (`DuplicateTargetError`) | Lab Import tab | `POST /api/import/lab` (409 on dup) |
 | Read Pest ID sheet (crop auto-detect + week list) | `pests.prepare` (`importers/pest.py`) | Pest ID tab (browse) | `POST /api/pest/upload` |
 | Commit a pest week → current week | `pests.commit` | Pest ID tab | `POST /api/pest/commit` |
