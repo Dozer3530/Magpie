@@ -260,8 +260,9 @@ Adding a crop is a three-step drop-in — no Python changes outside the registry
 ```
 python -m pytest -q
 ```
-67 tests covering schema, DB, importers (incl. pest), services, the golden
-export, the pest export block, trends, and the desktop↔web export parity. The
+99 tests covering schema, DB, importers (incl. pest + reactive), services, the
+golden export, the pest export block, reactive export, trends, and the
+desktop↔web export parity. The
 `tests/conftest.py` `isolated_db` fixture redirects the DB + image storage into
 a temp folder, so tests never touch your real `data/`.
 
@@ -288,6 +289,7 @@ app/
 │   ├── exports.py           build_week_package / build_all + week_status
 │   ├── trends.py            week-over-week series by category
 │   ├── pests.py             Pest ID parse / commit / status / export block
+│   ├── reactive.py          Reactive feed: scattered points, derived IDs, export
 │   ├── maintenance.py       one-click WAL-safe DB backup
 │   └── publish.py           shareable self-refreshing progress page
 └── ui/                    PySide6 tabs (thin: widgets only)
